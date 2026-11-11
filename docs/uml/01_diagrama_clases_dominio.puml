@@ -1,0 +1,432 @@
+@startuml diagrama_clases_dominio
+' ============================================================
+' Aplicación de Donaciones — Diagrama de clases del dominio
+' Fuente: Requerimientos (RF-01 a RF-15, RNF-01 a RNF-15),
+'         Casos de uso (CU-01 a CU-51) y Arquitectura de software.
+' ============================================================
+
+title Aplicación de Donaciones — Diagrama de clases del dominio
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+' Motor de acomodo interno de PlantUML: no necesita instalar Graphviz.
+!pragma layout smetana
+skinparam packageStyle rectangle
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam class {
+  BackgroundColor White
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam note {
+  BackgroundColor #FFFBE6
+  BorderColor #B8A000
+}
+hide empty members
+
+' ------------------------------------------------------------
+' Tipos de valor y enumeraciones
+' ------------------------------------------------------------
+package "Tipos comunes" {
+
+  enum Urgencia <<enumeration>> {
+    ALTA
+    MEDIA
+    BAJA
+  }
+
+  enum EstadoPublicacion <<enumeration>> {
+    ACTIVA
+    RESERVADA
+    CERRADA
+    RETIRADA
+  }
+
+  enum CondicionArticulo <<enumeration>> {
+    NUEVO
+    COMO_NUEVO
+    USADO
+  }
+
+  enum EstadoPropuesta <<enumeration>> {
+    PENDIENTE
+    ACEPTADA
+    RECHAZADA
+    RETIRADA
+  }
+
+  enum EstadoDonacion <<enumeration>> {
+    ACEPTADA
+    EN_ENTREGA
+    ENTREGADA
+    FINALIZADA
+    CANCELADA
+  }
+
+  enum EstadoSolicitudRol <<enumeration>> {
+    PENDIENTE
+    APROBADA
+    RECHAZADA
+    REVOCADA
+  }
+
+  enum TipoNotificacion <<enumeration>> {
+    NUEVA_COINCIDENCIA
+    NUEVA_PROPUESTA
+    PROPUESTA_ACEPTADA
+    PROPUESTA_RECHAZADA
+    CAMBIO_ESTADO_DONACION
+    DECISION_ROL_INTERMEDIARIO
+  }
+
+  enum Papel <<enumeration>> {
+    DONANTE
+    DONATARIO
+  }
+
+  class Ubicacion <<valor>> {
+    - etiqueta : String
+    - latitud : double
+    - longitud : double
+    + distanciaKm(otra : Ubicacion) : double
+  }
+
+  class Caracteristica <<valor>> {
+    - clave : String
+    - valor : String
+  }
+}
+
+' ------------------------------------------------------------
+' Usuarios, acceso y confianza (RF-01 a RF-04, RF-03)
+' ------------------------------------------------------------
+package "Usuarios y seguridad" {
+
+  class Usuario {
+    - id : UUID
+    - nombreUsuario : String {único, no editable}
+    - nombreLegal : String {no editable}
+    - correo : String
+    - telefono : String {10 dígitos}
+    - telefonoCompartido : boolean
+    - fotoPerfil : String [0..1]
+    - ubicacionAproximada : Ubicacion
+    - avisoPrivacidadAceptado : boolean
+    - esAdministrador : boolean
+    - /esIntermediario : boolean
+    - fechaRegistro : DateTime
+    + modificarPerfil(foto : String, telefono : String) : void
+    + compartirTelefono(compartir : boolean) : void
+    + consultarHistorial(papel : Papel [0..1], estado : EstadoDonacion [0..1]) : List<Donacion>
+    + solicitarRolIntermediario(organizacion : String, documento : String) : SolicitudRolIntermediario
+    + puedePublicarPorBeneficiario() : boolean
+  }
+
+  class CuentaAcceso {
+    - correoVerificado : boolean
+    - contrasenaHash : String
+    - intentosFallidos : int
+    - bloqueadaHasta : DateTime [0..1]
+    + verificarCorreo() : void
+    + {static} buscar(nombreUsuarioOCorreo : String) : CuentaAcceso [0..1]
+    + autenticar(contrasena : String) : Sesion
+    + registrarIntentoFallido() : void
+    + estaBloqueada() : boolean
+    + cambiarContrasena(nueva : String) : void
+    + solicitarRestablecimiento() : TokenRestablecimiento
+  }
+
+  class TokenRestablecimiento {
+    - token : String
+    - expiraEn : DateTime
+    - usado : boolean
+    + esValido() : boolean
+    + usar(nuevaContrasena : String) : void
+  }
+
+  class Sesion {
+    - token : String
+    - iniciadaEn : DateTime
+    + cerrar() : void
+  }
+
+  class PerfilConfianza {
+    - {static} MIN_FINALIZADAS : int = 5
+    - {static} MIN_PROMEDIO : double = 4.0
+    - {static} MIN_RESENAS : int = 3
+    - /donacionesFinalizadas : int
+    - /promedioCalificacion : double
+    - /numeroResenas : int
+    - otorgado : boolean
+    + recalcular() : void
+    + faltantes() : Map<String, Number>
+  }
+
+  class Notificacion {
+    - id : UUID
+    - tipo : TipoNotificacion
+    - contenido : String
+    - fechaHora : DateTime
+    - leida : boolean
+    + marcarLeida() : void
+  }
+}
+
+' ------------------------------------------------------------
+' Publicaciones y emparejamiento (RF-05 a RF-10)
+' ------------------------------------------------------------
+package "Publicaciones" {
+
+  abstract class Publicacion {
+    - id : UUID
+    - titulo : String
+    - descripcion : String
+    - estado : EstadoPublicacion
+    - ubicacion : Ubicacion
+    - caracteristicas : List<Caracteristica>
+    - fechaPublicacion : DateTime
+    + editar(datos) : void
+    + retirar() : void
+    + reservar() : void
+    + reactivar() : void
+    + cerrar() : void
+    + estaActiva() : boolean
+  }
+
+  class Necesidad {
+    - urgencia : Urgencia
+    - cantidadRequerida : int
+    - condicionAceptable : CondicionArticulo [0..1]
+    - gestionadaPorIntermediario : boolean
+    - aliasBeneficiario : String [0..1]
+  }
+
+  class Articulo {
+    - cantidad : int
+    - condicion : CondicionArticulo
+  }
+
+  class Fotografia {
+    - ruta : String
+    - posicion : int
+  }
+
+  class Categoria {
+    - id : UUID
+    - nombre : String {único}
+    - activa : boolean
+    + renombrar(nombre : String) : void
+    + desactivar() : void
+  }
+
+  class Coincidencia <<calculada>> {
+    - distanciaKm : double
+    - caracteristicasCumplidas : List<Caracteristica>
+    + prioridad() : int
+  }
+}
+
+' ------------------------------------------------------------
+' Solicitudes, Ofertas y Donación (RF-11 a RF-14)
+' ------------------------------------------------------------
+package "Propuestas y donación" {
+
+  abstract class Propuesta {
+    - id : UUID
+    - estado : EstadoPropuesta
+    - fechaEnvio : DateTime
+    - claveCliente : String {único}
+    + retirar() : void
+    + aceptar() : Donacion
+    + rechazar(motivo : String [0..1]) : void
+  }
+
+  class Solicitud {
+    - mensaje : String {máx. 300}
+  }
+
+  class Oferta {
+    - descripcion : String
+  }
+
+  class Donacion {
+    - id : UUID
+    - estado : EstadoDonacion
+    - lugarEntrega : String [0..1]
+    - fechaEntrega : DateTime [0..1]
+    - fechaEntregada : DateTime [0..1]
+    - fechaFinalizacion : DateTime [0..1]
+    - motivoCancelacion : String [0..1]
+    + registrarEntrega(lugar : String, fecha : DateTime, actor : Usuario) : void
+    + marcarEntregada(actor : Usuario) : void
+    + confirmarRecepcion(actor : Usuario) : void
+    + finalizarAutomaticamente() : void
+    + cancelar(motivo : String, actor : Usuario) : void
+    + chatDisponible() : boolean
+    + puedeResenar(usuario : Usuario) : boolean
+    + papelDe(usuario : Usuario) : Papel
+  }
+
+  class CambioEstado {
+    - estadoAnterior : EstadoDonacion [0..1]
+    - estadoNuevo : EstadoDonacion
+    - fechaHora : DateTime
+    - nota : String [0..1]
+  }
+
+  class Mensaje {
+    - contenido : String
+    - fechaHora : DateTime
+  }
+
+  class Resena {
+    - calificacion : int {1..5}
+    - comentario : String [0..1] {máx. 500}
+    - fecha : DateTime
+  }
+}
+
+' ------------------------------------------------------------
+' Administración (RF-07, RF-15)
+' ------------------------------------------------------------
+package "Administración" {
+
+  class SolicitudRolIntermediario {
+    - id : UUID
+    - organizacion : String
+    - documentoRespaldo : String
+    - estado : EstadoSolicitudRol
+    - fechaSolicitud : DateTime
+    - fechaDecision : DateTime [0..1]
+    + aprobar(admin : Usuario) : void
+    + rechazar(admin : Usuario) : void
+    + revocar(admin : Usuario) : void
+  }
+}
+
+' ============================================================
+' Relaciones
+' ============================================================
+
+' --- Usuario y sus partes
+Usuario "1" *-- "1" CuentaAcceso
+Usuario "1" *-- "1" PerfilConfianza
+CuentaAcceso "1" *-- "0..*" TokenRestablecimiento
+CuentaAcceso "1" -- "0..*" Sesion : abre >
+Usuario "1" *-- "0..*" Notificacion : recibe >
+
+' --- Publicaciones
+Publicacion <|-- Necesidad
+Publicacion <|-- Articulo
+Usuario "1" -- "0..*" Publicacion : autor >
+Publicacion "0..*" --> "1" Categoria : clasificada en >
+Articulo "1" *-- "1..5" Fotografia
+
+' --- Emparejamiento (se calcula, no se guarda)
+Coincidencia "0..*" --> "1" Necesidad
+Coincidencia "0..*" --> "1" Articulo
+
+' --- Propuestas
+Propuesta <|-- Solicitud
+Propuesta <|-- Oferta
+Usuario "1" -- "0..*" Propuesta : envía >
+Solicitud "0..*" --> "1" Articulo : pide >
+Oferta "0..*" --> "1" Necesidad : cubre >
+Oferta "1" *-- "1..*" Fotografia
+
+' --- Donación
+Propuesta "1" -- "0..1" Donacion : origina >
+Donacion "0..*" --> "1" Publicacion
+Donacion "0..*" --> "1" Usuario : donante
+Donacion "0..*" --> "1" Usuario : donatario
+Donacion "0..*" --> "0..1" Usuario : /intermediario
+Donacion "1" *-- "1..*" CambioEstado : historial
+CambioEstado "0..*" --> "0..1" Usuario : actor
+Donacion "1" *-- "0..*" Mensaje : chat
+Mensaje "0..*" --> "1" Usuario : remitente
+Donacion "1" -- "0..2" Resena
+Resena "0..*" --> "1" Usuario : autor
+Resena "0..*" --> "1" Usuario : reseñado
+
+' --- Intermediarios
+Usuario "1" -- "0..*" SolicitudRolIntermediario : solicita >
+SolicitudRolIntermediario "0..*" --> "0..1" Usuario : revisada por {esAdministrador}
+
+' ============================================================
+' Reglas de negocio (notas)
+' ============================================================
+
+note top of PerfilConfianza
+  Atributos con "/" son derivados de Donacion y Resena.
+  otorgado = donacionesFinalizadas >= 5
+             y promedioCalificacion >= 4.0
+             y numeroResenas >= 3
+  Se recalcula al finalizar una Donación
+  o al registrar una Reseña (RF-03).
+end note
+
+note right of CuentaAcceso
+  5 intentos fallidos consecutivos
+  bloquean el acceso 15 minutos (CU-09).
+  Contraseña protegida con hash (RNF-07).
+end note
+
+note bottom of TokenRestablecimiento
+  Válido 30 minutos, un solo uso (CU-08).
+end note
+
+note bottom of Necesidad
+  Si gestionadaPorIntermediario = true:
+  el autor es un intermediario autorizado
+  y aliasBeneficiario es obligatorio.
+  Nunca se guarda el domicilio exacto (RNF-09).
+end note
+
+note right of Propuesta
+  Solo una propuesta PENDIENTE por
+  usuario y publicación (RF-11).
+  claveCliente evita duplicados (RNF-11).
+  Al aceptar una, las demás pendientes
+  de la publicación se rechazan.
+end note
+
+note bottom of Donacion
+  ACEPTADA -> EN_ENTREGA: cualquiera de las partes
+  EN_ENTREGA -> ENTREGADA: solo el donante
+  ENTREGADA -> FINALIZADA: donatario, intermediario
+                           o Sistema a los 7 días
+  ACEPTADA | EN_ENTREGA -> CANCELADA: cualquiera (con motivo)
+  Chat solo en ACEPTADA o EN_ENTREGA.
+  Si la Necesidad es gestionada por intermediario:
+  donatario = intermediario = autor de la Necesidad.
+  Mensaje.remitente y Resena.autor/reseñado
+  deben ser donante o donatario de la Donación.
+end note
+
+note bottom of Usuario
+  /esIntermediario = existe una SolicitudRolIntermediario
+  APROBADA (no revocada) de este usuario.
+end note
+
+note right of CambioEstado
+  actor nulo = Sistema
+  (RF-12, RNF-15)
+end note
+
+note right of Resena
+  Una por parte y Donación FINALIZADA,
+  dentro de 14 días (RF-14).
+end note
+
+note right of Coincidencia
+  Necesidad y Artículo ACTIVOS de la
+  misma categoría. Orden: urgencia,
+  luego distancia (RF-10).
+end note
+
+note bottom of Categoria
+  Se desactiva, no se borra (RNF-14).
+end note
+
+@enduml
