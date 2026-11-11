@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color de fondo definido por el equipo (PaletaColores.md). -->
+    <color name="fondo">#94DEA5</color>
+</resources>
