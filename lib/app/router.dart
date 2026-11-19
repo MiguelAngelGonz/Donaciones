@@ -1,5 +1,9 @@
 import 'package:donaciones/app/shell_scaffold.dart';
 import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
+import 'package:donaciones/features/auth/presentation/login_screen.dart';
+import 'package:donaciones/features/auth/presentation/register_screen.dart';
+import 'package:donaciones/features/auth/presentation/reset_password_screen.dart';
+import 'package:donaciones/features/profile/presentation/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -50,34 +54,21 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
           ),
           GoRoute(
             path: '/profile',
-            builder: (context, state) => const _TabPlaceholderScreen(
-              icon: Icons.person_outline,
-              title: 'Perfil',
-              subtitle: 'Consulta tu Perfil de Confianza, reseñas y rol.',
-            ),
+            builder: (context, state) => const ProfileScreen(),
           ),
         ],
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const _StandalonePlaceholderScreen(
-          title: 'Iniciar sesión',
-          subtitle: 'Acceso con usuario o correo electrónico (CU-07, CU-09).',
-        ),
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const _StandalonePlaceholderScreen(
-          title: 'Registro',
-          subtitle: 'Registro de cuenta en 3 pasos (CU-01, CU-02).',
-        ),
+        builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: '/reset-password',
-        builder: (context, state) => const _StandalonePlaceholderScreen(
-          title: 'Restablecer contraseña',
-          subtitle: 'Recuperación de acceso mediante token temporal (CU-08).',
-        ),
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
       GoRoute(
         path: '/publications/:id',
