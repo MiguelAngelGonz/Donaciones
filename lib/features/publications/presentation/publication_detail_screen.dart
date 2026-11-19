@@ -33,6 +33,18 @@ class _PublicationDetailScreenState
   String? _busyProposalId;
   DonacionMock? _acceptedDonation;
 
+  @override
+  void didUpdateWidget(covariant PublicationDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.publicationId != widget.publicationId) {
+      _pendingAcceptKeys.clearAll();
+      _actionError = null;
+      _isWithdrawing = false;
+      _busyProposalId = null;
+      _acceptedDonation = null;
+    }
+  }
+
   void _navigateBack() {
     final router = GoRouter.maybeOf(context);
     if (router != null) {

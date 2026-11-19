@@ -292,6 +292,92 @@ void main() {
         expect(logged.id, 'usr-diego');
       },
     );
+
+    testWidgets(
+      'CU-08 RNF-12: ResetPasswordScreen maneja NetworkException en request y confirm y limpia token previo si falla un nuevo intento',
+      (tester) async {
+        final (store, _) = await pumpAppAtRoute(tester, '/reset-password');
+        store.setActiveUser(null);
+        await tester.pumpAndSettle();
+
+        // 1. NetworkException during requestPasswordReset
+        store.setSimulateNetworkError(true);
+        await tester.enterText(
+          find.byKey(const Key('reset_email_field')),
+          'diego@donaplus.app',
+        );
+        await tester.ensureVisible(
+          find.text('Enviar enlace de restablecimiento'),
+        );
+        await tester.tap(find.text('Enviar enlace de restablecimiento'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining(
+            'No se pudo completar la operación por pérdida de conexión',
+          ),
+          findsOneWidget,
+        );
+        expect(store.resetTokens, isEmpty);
+
+        // 2. Recover network and generate token
+        store.setSimulateNetworkError(false);
+        await tester.tap(find.text('Enviar enlace de restablecimiento'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Válido por 30 minutos y de un solo uso'),
+          findsOneWidget,
+        );
+        expect(store.resetTokens.length, 1);
+
+        // 3. Subsequent failed request clears stale _generatedToken banner
+        store.setSimulateNetworkError(true);
+        await tester.tap(find.text('Enviar enlace de restablecimiento'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Válido por 30 minutos y de un solo uso'),
+          findsNothing,
+        );
+        expect(
+          find.textContaining(
+            'No se pudo completar la operación por pérdida de conexión',
+          ),
+          findsOneWidget,
+        );
+
+        // 4. NetworkException during confirmPasswordReset does not mutate password
+        await tester.enterText(
+          find.byKey(const Key('reset_new_password_field')),
+          'DiegoNet2026',
+        );
+        await tester.ensureVisible(find.text('Actualizar contraseña'));
+        await tester.tap(find.text('Actualizar contraseña'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining(
+            'No se pudo completar la operación por pérdida de conexión',
+          ),
+          findsNWidgets(2),
+        );
+        expect(find.textContaining('Contraseña actualizada'), findsNothing);
+
+        // 5. Recover network and confirm succeeds
+        store.setSimulateNetworkError(false);
+        await tester.tap(find.text('Actualizar contraseña'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Contraseña actualizada'),
+          findsOneWidget,
+        );
+
+        final logged = await store.login(
+          usernameOrEmail: 'diego@donaplus.app',
+          password: 'DiegoNet2026',
+        );
+        expect(logged.id, 'usr-diego');
+      },
+    );
   });
 
   group('ProfileScreen, Trust Profile, Reviews, Edit Profile & Logout (CU-03 to CU-06, CU-10)',

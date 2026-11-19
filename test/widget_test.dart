@@ -3,6 +3,11 @@ import 'package:donaciones/app/theme.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/widgets/notifications_sheet.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
+import 'package:donaciones/features/donations/presentation/donations_hub_screen.dart';
+import 'package:donaciones/features/matching/presentation/matches_screen.dart';
+import 'package:donaciones/features/profile/presentation/profile_screen.dart';
+import 'package:donaciones/features/publications/presentation/create_publication_screen.dart';
+import 'package:donaciones/features/publications/presentation/feed_screen.dart';
 import 'package:donaciones/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,27 +55,45 @@ void main() {
         findsOneWidget,
       );
 
-      // Verify switching tabs via NavigationBar works cleanly
+      // Initial Inicio tab renders FeedScreen content
+      expect(find.byType(FeedScreen), findsOneWidget);
+      expect(find.text('¿Cómo podemos ayudarte hoy?'), findsOneWidget);
+
+      // Verify switching each of the 5 bottom tabs renders its destination screen content
       await tester.tap(
         find.descendant(of: navBar, matching: find.text('Coincidencias')),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(MatchesScreen), findsOneWidget);
+      expect(find.textContaining('Coincidencias ('), findsOneWidget);
+
       await tester.tap(
         find.descendant(of: navBar, matching: find.text('Publicar')),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(CreatePublicationScreen), findsOneWidget);
+      expect(find.text('Crear publicación'), findsOneWidget);
+
       await tester.tap(
         find.descendant(of: navBar, matching: find.text('Donaciones')),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(DonationsHubScreen), findsOneWidget);
+      expect(find.byKey(const Key('donations_tab_proposals')), findsOneWidget);
+
       await tester.tap(
         find.descendant(of: navBar, matching: find.text('Perfil')),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(ProfileScreen), findsOneWidget);
+      expect(find.text('Guadalupe Alondra Gutiérrez Paz'), findsOneWidget);
+
       await tester.tap(
         find.descendant(of: navBar, matching: find.text('Inicio')),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(FeedScreen), findsOneWidget);
+      expect(find.text('¿Cómo podemos ayudarte hoy?'), findsOneWidget);
     },
   );
 
@@ -229,6 +252,13 @@ void main() {
       final store = MockTenantStore();
       final alondra = store.findUserById('usr-alondra')!;
       final diego = store.findUserById('usr-diego')!;
+      final sevenDonationsPendingReviews = diego.copyWith(
+        id: 'usr-seven',
+        donacionesFinalizadas: 7,
+        numeroResenas: 2,
+        promedioCalificacion: 4.9,
+        perfilConfianzaOtorgado: false,
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -238,6 +268,7 @@ void main() {
               children: [
                 TrustBadgeChip(usuario: alondra),
                 TrustBadgeChip(usuario: diego),
+                TrustBadgeChip(usuario: sevenDonationsPendingReviews),
               ],
             ),
           ),
@@ -247,7 +278,12 @@ void main() {
       expect(find.text('Perfil de Confianza'), findsOneWidget);
       expect(find.textContaining('4.8'), findsOneWidget);
       expect(find.textContaining('12'), findsOneWidget);
-      expect(find.textContaining('En progreso'), findsOneWidget);
+      expect(find.textContaining('En progreso (2/5 donaciones'), findsOneWidget);
+      expect(find.textContaining('7/5'), findsNothing);
+      expect(
+        find.textContaining('5/5 donaciones · 2/3 reseñas'),
+        findsOneWidget,
+      );
     },
   );
 

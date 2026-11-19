@@ -62,7 +62,7 @@ class _RequestItemSheetState extends ConsumerState<RequestItemSheet> {
           userId: activeUser.id,
         );
     final isSubmitted = state.submittedProposal != null;
-    final charCount = _messageController.text.length;
+    final charCount = _messageController.text.trim().length;
     final isOverLimit = charCount > 300;
     final isNearLimit = charCount >= 280 && !isOverLimit;
 

@@ -59,6 +59,17 @@ class _PublishNeedFormState extends ConsumerState<PublishNeedForm> {
     );
     if (created == null || !mounted) return;
 
+    final defaultLocation =
+        ref.read(mockTenantStoreProvider).activeUser?.ubicacionAproximada.etiqueta ??
+        '';
+    _titleController.clear();
+    _descriptionController.clear();
+    _quantityController.text = '1';
+    _detailsController.clear();
+    _locationController.text = defaultLocation;
+    _lastDefaultLocation = defaultLocation;
+    _aliasController.clear();
+
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text('Necesidad publicada: "${created.titulo}"'),
@@ -73,19 +84,17 @@ class _PublishNeedFormState extends ConsumerState<PublishNeedForm> {
       final user = next.activeUser;
       if (user?.id == _lastUserId) return;
       _lastUserId = user?.id;
+      final needController = ref.read(publishNeedControllerProvider.notifier);
+      needController.clearPublishedBanner();
       final newLocation = user?.ubicacionAproximada.etiqueta ?? '';
       if (_locationController.text.trim().isEmpty ||
           _locationController.text == _lastDefaultLocation) {
         _locationController.text = newLocation;
-        ref
-            .read(publishNeedControllerProvider.notifier)
-            .setUbicacionEtiqueta(newLocation);
+        needController.setUbicacionEtiqueta(newLocation);
       }
       _lastDefaultLocation = newLocation;
       if (user?.esIntermediario != true) {
-        ref
-            .read(publishNeedControllerProvider.notifier)
-            .setGestionadaPorIntermediario(false);
+        needController.setGestionadaPorIntermediario(false);
       }
     });
 

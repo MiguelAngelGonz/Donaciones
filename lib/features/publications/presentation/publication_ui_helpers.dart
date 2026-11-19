@@ -647,6 +647,7 @@ class PublicationPhotosField extends StatelessWidget {
   final String? errorText;
   final Key? addButtonKey;
   final Key? sourceButtonKey;
+  final bool enabled;
 
   const PublicationPhotosField({
     super.key,
@@ -658,6 +659,7 @@ class PublicationPhotosField extends StatelessWidget {
     this.errorText,
     this.addButtonKey,
     this.sourceButtonKey,
+    this.enabled = true,
   });
 
   Future<void> _showPhotoSourcePicker(BuildContext context) {
@@ -750,7 +752,7 @@ class PublicationPhotosField extends StatelessWidget {
                 PublicationPhotoPlaceholder(
                   photoPath: photos[i],
                   isPrimary: i == 0,
-                  onRemove: () => onRemoveAt(i),
+                  onRemove: enabled ? () => onRemoveAt(i) : null,
                 ),
             ],
           ),
@@ -762,13 +764,15 @@ class PublicationPhotosField extends StatelessWidget {
           children: [
             OutlinedButton.icon(
               key: addButtonKey,
-              onPressed: atLimit ? null : onAddQuickPhoto,
+              onPressed: (!enabled || atLimit) ? null : onAddQuickPhoto,
               icon: const Icon(Icons.add_a_photo_outlined),
               label: const Text('Agregar foto'),
             ),
             TextButton.icon(
               key: sourceButtonKey,
-              onPressed: atLimit ? null : () => _showPhotoSourcePicker(context),
+              onPressed: (!enabled || atLimit)
+                  ? null
+                  : () => _showPhotoSourcePicker(context),
               icon: const Icon(Icons.photo_library_outlined),
               label: const Text('Elegir muestra o galería'),
             ),

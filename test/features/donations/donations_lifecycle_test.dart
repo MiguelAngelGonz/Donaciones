@@ -2,6 +2,7 @@ import 'package:donaciones/app/router.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/features/donations/presentation/donation_tracking_screen.dart';
+import 'package:donaciones/features/donations/presentation/donation_ui_helpers.dart';
 import 'package:donaciones/features/donations/presentation/donations_hub_screen.dart';
 import 'package:donaciones/features/proposals/presentation/offer_item_sheet.dart';
 import 'package:donaciones/features/proposals/presentation/request_item_sheet.dart';
@@ -804,6 +805,225 @@ void main() {
         final cancelKeys = spyStore.keysFor('cancel');
         expect(cancelKeys.length, 2);
         expect(cancelKeys[1], cancelKeys[0]);
+      },
+    );
+  });
+
+  group('Final Review Fixes: date picker clock clamp, chat/review RNF-12 & route ID isolation',
+      () {
+    testWidgets(
+      'selector de fecha tras +7d no falla assertion, resetea fecha pasada y chat/reseña manejan NetworkException',
+      (tester) async {
+        final (store, container) = await pumpAppAtRoute(tester, '/');
+
+        final prop = await store.createRequestProposal(
+          publicationId: 'pub-3',
+          senderId: 'usr-alondra',
+          message: 'Solicitud para probar date picker tras avanzar reloj.',
+          clientKey: 'ck-dp-1',
+        );
+        store.setActiveUser('usr-maria');
+        final don = await store.acceptProposal(
+          proposalId: prop.id,
+          clientKey: 'ck-dp-acc',
+        );
+
+        container.read(appRouterProvider).go('/donations/${don.id}');
+        await tester.pumpAndSettle();
+
+        // Pick "En 3 días" before advancing simulated clock
+        await tapVisible(tester, find.text('En 3 días'));
+        final staleDate = store.currentTime.add(const Duration(days: 3));
+        expect(
+          find.text('Fecha acordada: ${formatDonationDate(staleDate)}'),
+          findsOneWidget,
+        );
+
+        // Advance clock by +7d via DemoTenantToolbar -> staleDate is now 4 days in the past!
+        await tester.tap(find.text('+7d'));
+        await tester.pumpAndSettle();
+
+        final clampedFallback = store.currentTime.add(const Duration(days: 1));
+        expect(
+          find.text('Fecha acordada: ${formatDonationDate(clampedFallback)}'),
+          findsOneWidget,
+        );
+
+        // Opening showDatePicker must not throw AssertionError (initialDate >= firstDate)
+        await tapVisible(
+          tester,
+          find.byKey(const Key('delivery_date_picker_button')),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(DatePickerDialog), findsOneWidget);
+
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        // Chat NetworkException (RNF-12) keeps typed text and allows retry
+        await tester.enterText(
+          find.byKey(const Key('chat_message_field')),
+          'Nos vemos mañana en la entrada principal.',
+        );
+        store.setSimulateNetworkError(true);
+        await tapVisible(tester, find.byKey(const Key('chat_send_button')));
+        expect(
+          find.textContaining(
+            'No se pudo completar la operación por pérdida de conexión',
+          ),
+          findsOneWidget,
+        );
+        expect(store.findDonationById(don.id)?.mensajes, isEmpty);
+        final chatField = tester.widget<TextField>(
+          find.byKey(const Key('chat_message_field')),
+        );
+        expect(
+          chatField.controller?.text,
+          'Nos vemos mañana en la entrada principal.',
+        );
+
+        store.setSimulateNetworkError(false);
+        await tapVisible(tester, find.byKey(const Key('chat_send_button')));
+        expect(store.findDonationById(don.id)?.mensajes.length, 1);
+
+        // Schedule, mark delivered, and confirm receipt so review card appears
+        await tester.enterText(
+          find.byKey(const Key('delivery_place_field')),
+          'Entrada Parque Juárez',
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const Key('register_delivery_schedule_button')),
+        );
+        final scheduled = store.findDonationById(don.id)!;
+        expect(scheduled.estado, EstadoDonacion.enEntrega);
+        expect(
+          scheduled.fechaEntregaAcordada!.isAfter(
+            store.currentTime.subtract(const Duration(days: 1)),
+          ),
+          isTrue,
+        );
+
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        await tapVisible(tester, find.byKey(const Key('mark_delivered_button')));
+
+        store.setActiveUser('usr-alondra');
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        await tapVisible(
+          tester,
+          find.byKey(const Key('confirm_received_button')),
+        );
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+
+        // Trimmed review comment counter: 498 chars + 5 trailing spaces -> 498 / 500 (valid!)
+        await tapVisible(tester, find.byKey(const Key('review_star_5')));
+        await tester.enterText(
+          find.byKey(const Key('review_comment_field')),
+          '${'A' * 498}     ',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('498 / 500 caracteres'), findsOneWidget);
+
+        // Review NetworkException (RNF-12) preserves state and retries cleanly
+        store.setSimulateNetworkError(true);
+        await tapVisible(tester, find.byKey(const Key('submit_review_button')));
+        expect(
+          find.textContaining(
+            'No se pudo completar la operación por pérdida de conexión',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          store.reviews.where((r) => r.donacionId == don.id),
+          isEmpty,
+        );
+
+        store.setSimulateNetworkError(false);
+        await tapVisible(tester, find.byKey(const Key('submit_review_button')));
+        expect(
+          find.text('Ya enviaste tu reseña para esta donación'),
+          findsOneWidget,
+        );
+        expect(
+          store.reviews.where((r) => r.donacionId == don.id).length,
+          1,
+        );
+      },
+    );
+
+    testWidgets(
+      'navegación directa entre IDs en /publications/:id y /donations/:id no arrastra estado previo',
+      (tester) async {
+        final (store, container) = await pumpAppAtRoute(tester, '/');
+        final router = container.read(appRouterProvider);
+
+        // Create two active donations for usr-alondra
+        final propA = await store.createRequestProposal(
+          publicationId: 'pub-3',
+          senderId: 'usr-alondra',
+          message: 'Propuesta A',
+          clientKey: 'ck-nav-a',
+        );
+        store.setActiveUser('usr-maria');
+        final donA = await store.acceptProposal(
+          proposalId: propA.id,
+          clientKey: 'ck-nav-acc-a',
+        );
+
+        final propB = await store.createRequestProposal(
+          publicationId: 'pub-4',
+          senderId: 'usr-alondra',
+          message: 'Propuesta B',
+          clientKey: 'ck-nav-b',
+        );
+        store.setActiveUser('usr-diego');
+        final donB = await store.acceptProposal(
+          proposalId: propB.id,
+          clientKey: 'ck-nav-acc-b',
+        );
+
+        store.setActiveUser('usr-alondra');
+        router.go('/donations/${donA.id}');
+        await tester.pumpAndSettle();
+
+        // Populate place field and trigger validation error on donA
+        await tester.enterText(
+          find.byKey(const Key('delivery_place_field')),
+          'Lugar Donación A',
+        );
+        await tester.pumpAndSettle();
+        await tapVisible(
+          tester,
+          find.byKey(const Key('chat_send_button')),
+        );
+        expect(
+          find.text('El mensaje no puede estar vacío.'),
+          findsOneWidget,
+        );
+
+        // Navigate directly to donB -> no leaked errors or place text
+        router.go('/donations/${donB.id}');
+        await tester.pumpAndSettle();
+        expect(find.text('ID: ${donB.id}'), findsOneWidget);
+        expect(find.text('El mensaje no puede estar vacío.'), findsNothing);
+        final placeFieldB = tester.widget<TextField>(
+          find.byKey(const Key('delivery_place_field')),
+        );
+        expect(placeFieldB.controller?.text, isEmpty);
+
+        // Direct navigation between /publications/pub-1 and /publications/pub-2
+        router.go('/publications/pub-1');
+        await tester.pumpAndSettle();
+        expect(find.text('Silla de ruedas plegable'), findsOneWidget);
+        router.go('/publications/pub-2');
+        await tester.pumpAndSettle();
+        expect(find.text('Libros escolares de primaria'), findsOneWidget);
+        expect(find.text('Silla de ruedas plegable'), findsNothing);
       },
     );
   });

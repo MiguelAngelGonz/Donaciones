@@ -52,6 +52,15 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
     );
     if (created == null || !mounted) return;
 
+    final defaultLocation =
+        ref.read(mockTenantStoreProvider).activeUser?.ubicacionAproximada.etiqueta ??
+        '';
+    _titleController.clear();
+    _descriptionController.clear();
+    _quantityController.text = '1';
+    _locationController.text = defaultLocation;
+    _lastDefaultLocation = defaultLocation;
+
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text('Artículo publicado: "${created.titulo}"'),
@@ -66,13 +75,13 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
       final user = next.activeUser;
       if (user?.id == _lastUserId) return;
       _lastUserId = user?.id;
+      final itemController = ref.read(publishItemControllerProvider.notifier);
+      itemController.clearPublishedBanner();
       final newLocation = user?.ubicacionAproximada.etiqueta ?? '';
       if (_locationController.text.trim().isEmpty ||
           _locationController.text == _lastDefaultLocation) {
         _locationController.text = newLocation;
-        ref
-            .read(publishItemControllerProvider.notifier)
-            .setUbicacionEtiqueta(newLocation);
+        itemController.setUbicacionEtiqueta(newLocation);
       }
       _lastDefaultLocation = newLocation;
     });
@@ -106,6 +115,7 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
               onAddSpecificPhoto: controller.addPhoto,
               onRemoveAt: controller.removePhotoAt,
               errorText: state.photosError,
+              enabled: !state.isSubmitting,
             ),
             const SizedBox(height: 14),
             TextFormField(

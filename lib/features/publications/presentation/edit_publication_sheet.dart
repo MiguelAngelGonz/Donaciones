@@ -304,6 +304,7 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
                   onAddSpecificPhoto: _addSpecificPhoto,
                   onRemoveAt: _removePhotoAt,
                   errorText: _photosError,
+                  enabled: !_isSubmitting,
                 ),
                 const SizedBox(height: 14),
               ],

@@ -10,6 +10,7 @@ import 'package:donaciones/features/profile/presentation/profile_screen.dart';
 import 'package:donaciones/features/publications/presentation/create_publication_screen.dart';
 import 'package:donaciones/features/publications/presentation/feed_screen.dart';
 import 'package:donaciones/features/publications/presentation/publication_detail_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -61,15 +62,23 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
       ),
       GoRoute(
         path: '/publications/:id',
-        builder: (context, state) => PublicationDetailScreen(
-          publicationId: state.pathParameters['id'] ?? '',
-        ),
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return PublicationDetailScreen(
+            key: ValueKey(id),
+            publicationId: id,
+          );
+        },
       ),
       GoRoute(
         path: '/donations/:id',
-        builder: (context, state) => DonationTrackingScreen(
-          donationId: state.pathParameters['id'] ?? '',
-        ),
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return DonationTrackingScreen(
+            key: ValueKey(id),
+            donationId: id,
+          );
+        },
       ),
       GoRoute(
         path: '/admin',

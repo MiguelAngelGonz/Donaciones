@@ -274,7 +274,15 @@ void main() {
         final sheetButton = tester.widget<ButtonStyleButton>(
           find.byKey(const Key('offer_submit_button')),
         );
+        final addPhotoButton = tester.widget<ButtonStyleButton>(
+          find.byKey(const Key('offer_add_photo_button')),
+        );
+        final sourcePhotoButton = tester.widget<ButtonStyleButton>(
+          find.byKey(const Key('offer_photo_source_button')),
+        );
         expect(sheetButton.enabled, isFalse);
+        expect(addPhotoButton.enabled, isFalse);
+        expect(sourcePhotoButton.enabled, isFalse);
         expect(freshStore.proposals.length, 1);
       },
     );

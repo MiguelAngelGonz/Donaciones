@@ -40,6 +40,26 @@ class _DonationTrackingScreenState
   int _selectedRating = 0;
 
   @override
+  void didUpdateWidget(covariant DonationTrackingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.donationId != widget.donationId) {
+      _placeController.clear();
+      _chatController.clear();
+      _reviewCommentController.clear();
+      _pendingActionKeys.clearAll();
+      _selectedDeliveryDate = null;
+      _placeError = null;
+      _chatError = null;
+      _reviewError = null;
+      _actionError = null;
+      _isProcessingAction = false;
+      _isSendingMessage = false;
+      _isSubmittingReview = false;
+      _selectedRating = 0;
+    }
+  }
+
+  @override
   void dispose() {
     _placeController.dispose();
     _chatController.dispose();
@@ -60,14 +80,45 @@ class _DonationTrackingScreenState
     }
   }
 
+  DateTime _resolveDeliveryDate(MockTenantStore store) {
+    final firstDate = store.currentTime.subtract(const Duration(days: 1));
+    final lastDate = store.currentTime.add(const Duration(days: 180));
+    final fallback = store.currentTime.add(const Duration(days: 1));
+    final selected = _selectedDeliveryDate;
+    if (selected == null || selected.isBefore(firstDate)) {
+      return fallback;
+    }
+    if (selected.isAfter(lastDate)) {
+      return lastDate;
+    }
+    return selected;
+  }
+
   Future<void> _pickDeliveryDate(MockTenantStore store) async {
-    final current = _selectedDeliveryDate ??
-        store.currentTime.add(const Duration(days: 1));
+    final firstDay = DateUtils.dateOnly(
+      store.currentTime.subtract(const Duration(days: 1)),
+    );
+    final lastDay = DateUtils.dateOnly(
+      store.currentTime.add(const Duration(days: 180)),
+    );
+    final resolved = _resolveDeliveryDate(store);
+    final resolvedDay = DateUtils.dateOnly(resolved);
+    final DateTime initialDate;
+    if (resolvedDay.isBefore(firstDay)) {
+      initialDate = DateUtils.dateOnly(
+        store.currentTime.add(const Duration(days: 1)),
+      );
+    } else if (resolvedDay.isAfter(lastDay)) {
+      initialDate = lastDay;
+    } else {
+      initialDate = resolvedDay;
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: current,
-      firstDate: store.currentTime.subtract(const Duration(days: 1)),
-      lastDate: store.currentTime.add(const Duration(days: 180)),
+      initialDate: initialDate,
+      firstDate: firstDay,
+      lastDate: lastDay,
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -75,8 +126,8 @@ class _DonationTrackingScreenState
         picked.year,
         picked.month,
         picked.day,
-        current.hour,
-        current.minute,
+        store.currentTime.hour,
+        store.currentTime.minute,
       );
     });
   }
@@ -139,8 +190,7 @@ class _DonationTrackingScreenState
 
     setState(() => _placeError = null);
     final store = ref.read(mockTenantStoreProvider);
-    final scheduledDate =
-        _selectedDeliveryDate ?? store.currentTime.add(const Duration(days: 1));
+    final scheduledDate = _resolveDeliveryDate(store);
 
     await _runDonationAction(
       (clientKey) => store.registerDeliverySchedule(
@@ -455,8 +505,7 @@ class _DonationTrackingScreenState
         ? donation.telefonoDonatarioCompartido
         : donation.telefonoDonanteCompartido;
 
-    final selectedDate =
-        _selectedDeliveryDate ?? store.currentTime.add(const Duration(days: 1));
+    final selectedDate = _resolveDeliveryDate(store);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -594,8 +643,10 @@ class _DonationTrackingScreenState
                   ),
                   ChoiceChip(
                     label: const Text('Mañana'),
-                    selected:
-                        selectedDate.difference(store.currentTime).inDays == 1,
+                    selected: DateUtils.isSameDay(
+                      selectedDate,
+                      store.currentTime.add(const Duration(days: 1)),
+                    ),
                     onSelected: _isProcessingAction
                         ? null
                         : (_) => setState(
@@ -606,8 +657,10 @@ class _DonationTrackingScreenState
                   ),
                   ChoiceChip(
                     label: const Text('En 3 días'),
-                    selected:
-                        selectedDate.difference(store.currentTime).inDays == 3,
+                    selected: DateUtils.isSameDay(
+                      selectedDate,
+                      store.currentTime.add(const Duration(days: 3)),
+                    ),
                     onSelected: _isProcessingAction
                         ? null
                         : (_) => setState(
@@ -848,7 +901,7 @@ class _DonationTrackingScreenState
     final daysElapsed = donation.fechaFinalizacion == null
         ? 999
         : store.currentTime.difference(donation.fechaFinalizacion!).inDays;
-    final commentLength = _reviewCommentController.text.length;
+    final commentLength = _reviewCommentController.text.trim().length;
 
     return Card(
       child: Padding(

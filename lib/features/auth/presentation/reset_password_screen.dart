@@ -63,7 +63,9 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
     setState(() {
       _isSubmittingRequest = true;
+      _generatedToken = null;
       _requestError = null;
+      _confirmError = null;
       _confirmSuccess = null;
     });
 
@@ -74,7 +76,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       setState(() {
         _isSubmittingRequest = false;
         _generatedToken = token;
-        _confirmError = null;
       });
     } on ValidationException catch (e) {
       if (!mounted) return;

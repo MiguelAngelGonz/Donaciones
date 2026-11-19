@@ -148,6 +148,7 @@ class _OfferItemSheetState extends ConsumerState<OfferItemSheet> {
                     onAddSpecificPhoto: controller.addPhoto,
                     onRemoveAt: controller.removePhotoAt,
                     errorText: state.photosError,
+                    enabled: !state.isSubmitting && blockingWarning == null,
                   ),
                   const SizedBox(height: 14),
                   TextField(

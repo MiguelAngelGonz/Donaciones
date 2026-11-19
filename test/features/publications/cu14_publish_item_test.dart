@@ -250,5 +250,108 @@ void main() {
         expect(store.publications.length, initialCount);
       },
     );
+
+    testWidgets(
+      'TC-CU14-06: selector secundario de galería/muestra agrega fotos y el formulario se reinicia tras publicar sin duplicar',
+      (tester) async {
+        final (store, _) = await pumpAppAtCreateItem(tester);
+        final initialCount = store.publications.length;
+
+        // Open secondary photo source picker sheet
+        await tester.ensureVisible(
+          find.byKey(const Key('item_pick_photo_source_button')),
+        );
+        await tester.tap(find.byKey(const Key('item_pick_photo_source_button')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Elegir foto de muestra del tenant'),
+          findsOneWidget,
+        );
+        final galleryTile = find.text(
+          'Seleccionar desde galería del dispositivo',
+        );
+        await tester.ensureVisible(galleryTile);
+        await tester.pumpAndSettle();
+        await tester.tap(galleryTile);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('1/5'), findsOneWidget);
+
+        // Pick a tenant sample from the secondary sheet as well
+        await tester.ensureVisible(
+          find.byKey(const Key('item_pick_photo_source_button')),
+        );
+        await tester.tap(find.byKey(const Key('item_pick_photo_source_button')));
+        await tester.pumpAndSettle();
+        final sampleTile = find.text('sample://silla_ruedas.jpg');
+        await tester.ensureVisible(sampleTile);
+        await tester.pumpAndSettle();
+        await tester.tap(sampleTile);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('2/5'), findsOneWidget);
+
+        await tester.enterText(
+          find.byKey(const Key('item_title_field')),
+          'Andadera plegable',
+        );
+        await tester.enterText(
+          find.byKey(const Key('item_description_field')),
+          'Estructura ligera de aluminio',
+        );
+        await tester.ensureVisible(
+          find.byKey(const Key('item_category_dropdown')),
+        );
+        await tester.tap(find.byKey(const Key('item_category_dropdown')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Salud').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('item_quantity_field')),
+          '3',
+        );
+
+        await tester.ensureVisible(find.byKey(const Key('item_submit_button')));
+        await tester.tap(find.byKey(const Key('item_submit_button')));
+        await tester.pumpAndSettle();
+
+        expect(store.publications.length, initialCount + 1);
+        final created = store.publications.last;
+        expect(created.titulo, 'Andadera plegable');
+        expect(
+          created.fotografias,
+          ['device://galeria_1.jpg', 'sample://silla_ruedas.jpg'],
+        );
+
+        // Success banner remains visible while draft inputs are reset
+        expect(find.textContaining('Artículo publicado'), findsWidgets);
+        expect(find.textContaining('0/5'), findsOneWidget);
+        final titleField = tester.widget<TextFormField>(
+          find.byKey(const Key('item_title_field')),
+        );
+        final descField = tester.widget<TextFormField>(
+          find.byKey(const Key('item_description_field')),
+        );
+        final qtyField = tester.widget<TextFormField>(
+          find.byKey(const Key('item_quantity_field')),
+        );
+        expect(titleField.controller?.text, isEmpty);
+        expect(descField.controller?.text, isEmpty);
+        expect(qtyField.controller?.text, '1');
+
+        // Re-tapping submit immediately blocks empty form instead of duplicating
+        await tester.ensureVisible(find.byKey(const Key('item_submit_button')));
+        await tester.tap(find.byKey(const Key('item_submit_button')));
+        await tester.pumpAndSettle();
+        expect(store.publications.length, initialCount + 1);
+        expect(
+          find.text('El nombre del artículo es obligatorio.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('La primera fotografía del artículo es obligatoria.'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

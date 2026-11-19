@@ -144,15 +144,27 @@ class PublishNeedController extends StateNotifier<PublishNeedState> {
         );
 
   void setTitulo(String value) {
-    state = state.copyWith(titulo: value, tituloError: null);
+    state = state.copyWith(
+      titulo: value,
+      tituloError: null,
+      publishedPublication: null,
+    );
   }
 
   void setDescripcion(String value) {
-    state = state.copyWith(descripcion: value, descripcionError: null);
+    state = state.copyWith(
+      descripcion: value,
+      descripcionError: null,
+      publishedPublication: null,
+    );
   }
 
   void setCategoriaId(String? categoryId) {
-    state = state.copyWith(categoriaId: categoryId, categoriaError: null);
+    state = state.copyWith(
+      categoriaId: categoryId,
+      categoriaError: null,
+      publishedPublication: null,
+    );
   }
 
   void setCantidadFromText(String raw) {
@@ -162,34 +174,60 @@ class PublishNeedController extends StateNotifier<PublishNeedState> {
       cantidadError: parsed >= 1
           ? null
           : 'La cantidad requerida debe ser al menos 1.',
+      publishedPublication: null,
     );
   }
 
   void setCondicionAceptable(CondicionArticulo? condition) {
-    state = state.copyWith(condicionAceptable: condition);
+    state = state.copyWith(
+      condicionAceptable: condition,
+      publishedPublication: null,
+    );
   }
 
   void setDetallesCaracteristicas(String value) {
-    state = state.copyWith(detallesCaracteristicas: value);
+    state = state.copyWith(
+      detallesCaracteristicas: value,
+      publishedPublication: null,
+    );
   }
 
   void setUrgencia(Urgencia urgencia) {
-    state = state.copyWith(urgencia: urgencia, urgenciaError: null);
+    state = state.copyWith(
+      urgencia: urgencia,
+      urgenciaError: null,
+      publishedPublication: null,
+    );
   }
 
   void setUbicacionEtiqueta(String value) {
-    state = state.copyWith(ubicacionEtiqueta: value, ubicacionError: null);
+    state = state.copyWith(
+      ubicacionEtiqueta: value,
+      ubicacionError: null,
+      publishedPublication: null,
+    );
   }
 
   void setGestionadaPorIntermediario(bool enabled) {
     state = state.copyWith(
       gestionadaPorIntermediario: enabled,
       aliasError: enabled ? state.aliasError : null,
+      publishedPublication: null,
     );
   }
 
   void setAliasBeneficiario(String value) {
-    state = state.copyWith(aliasBeneficiario: value, aliasError: null);
+    state = state.copyWith(
+      aliasBeneficiario: value,
+      aliasError: null,
+      publishedPublication: null,
+    );
+  }
+
+  void clearPublishedBanner() {
+    if (state.publishedPublication != null) {
+      state = state.copyWith(publishedPublication: null);
+    }
   }
 
   Future<PublicacionMock?> submit({
@@ -276,10 +314,11 @@ class PublishNeedController extends StateNotifier<PublishNeedState> {
           aliasBeneficiario: effectiveIntermediary ? aliasBeneficiario : null,
         ),
       );
-      state = state.copyWith(
-        isSubmitting: false,
+      final defaultLocation =
+          _store.activeUser?.ubicacionAproximada.etiqueta ?? '';
+      state = PublishNeedState(
+        ubicacionEtiqueta: defaultLocation,
         publishedPublication: created,
-        submissionError: null,
       );
       return created;
     } on NetworkException catch (e) {

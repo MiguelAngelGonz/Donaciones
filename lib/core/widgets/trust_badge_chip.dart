@@ -84,6 +84,21 @@ class TrustBadgeChip extends StatelessWidget {
       );
     }
 
+    final clampedDonations = usuario.donacionesFinalizadas.clamp(0, 5);
+    final String progressLabel;
+    if (compact) {
+      progressLabel = 'En progreso · ★ $ratingLabel';
+    } else if (usuario.donacionesFinalizadas >= 5 && usuario.numeroResenas < 3) {
+      progressLabel =
+          'En progreso ($clampedDonations/5 donaciones · ${usuario.numeroResenas}/3 reseñas · ★ $ratingLabel)';
+    } else if (usuario.donacionesFinalizadas >= 5) {
+      progressLabel =
+          'En progreso ($clampedDonations/5 donaciones · ★ $ratingLabel / 4.0)';
+    } else {
+      progressLabel =
+          'En progreso ($clampedDonations/5 donaciones · ★ $ratingLabel)';
+    }
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 10,
@@ -107,9 +122,7 @@ class TrustBadgeChip extends StatelessWidget {
             color: theme.colorScheme.onSurface,
           ),
           Text(
-            compact
-                ? 'En progreso · ★ $ratingLabel'
-                : 'En progreso (${usuario.donacionesFinalizadas}/5 donaciones · ★ $ratingLabel)',
+            progressLabel,
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.onSurface,

@@ -317,5 +317,59 @@ void main() {
         expect(store.publications.length, initialCount);
       },
     );
+
+    testWidgets(
+      'TC-CU11-07: formulario de Necesidad se reinicia tras publicar y evita duplicar al volver a enviar',
+      (tester) async {
+        final (store, _) = await pumpAppAtRoute(tester, '/create');
+        await switchToNeedTab(tester);
+        final initialCount = store.publications.length;
+
+        await tester.enterText(
+          find.byKey(const Key('need_title_field')),
+          'Colchoneta ortopédica',
+        );
+        await tester.enterText(
+          find.byKey(const Key('need_description_field')),
+          'Para recuperación en casa',
+        );
+        await tester.ensureVisible(
+          find.byKey(const Key('need_category_dropdown')),
+        );
+        await tester.tap(find.byKey(const Key('need_category_dropdown')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Salud').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('need_quantity_field')),
+          '4',
+        );
+        await tapVisible(tester, find.byKey(const Key('need_urgency_media')));
+        await tapVisible(tester, find.byKey(const Key('need_submit_button')));
+
+        expect(store.publications.length, initialCount + 1);
+        expect(find.textContaining('Necesidad publicada'), findsWidgets);
+
+        final titleField = tester.widget<TextFormField>(
+          find.byKey(const Key('need_title_field')),
+        );
+        final descField = tester.widget<TextFormField>(
+          find.byKey(const Key('need_description_field')),
+        );
+        final qtyField = tester.widget<TextFormField>(
+          find.byKey(const Key('need_quantity_field')),
+        );
+        expect(titleField.controller?.text, isEmpty);
+        expect(descField.controller?.text, isEmpty);
+        expect(qtyField.controller?.text, '1');
+
+        await tapVisible(tester, find.byKey(const Key('need_submit_button')));
+        expect(store.publications.length, initialCount + 1);
+        expect(
+          find.text('El nombre del artículo requerido es obligatorio.'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

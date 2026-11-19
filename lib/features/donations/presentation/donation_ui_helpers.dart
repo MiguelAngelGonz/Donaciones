@@ -52,6 +52,11 @@ class PendingActionKeys {
   void clear(String operationKey) {
     _keys.remove(operationKey);
   }
+
+  /// Clears all cached operation keys (e.g. when widget switches donation/publication ID).
+  void clearAll() {
+    _keys.clear();
+  }
 }
 
 /// Executes [store.acceptProposal] and maps domain exceptions to [onError].

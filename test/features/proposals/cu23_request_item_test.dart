@@ -128,6 +128,20 @@ void main() {
         );
         expect(find.textContaining('máximo 300 caracteres'), findsWidgets);
         expect(store.proposals, isEmpty);
+
+        // (c) 298 trimmed chars + 5 trailing spaces -> counter shows 298/300 and passes
+        await tester.enterText(
+          find.byKey(const Key('request_message_field')),
+          '${'B' * 298}     ',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('298 / 300 caracteres'), findsOneWidget);
+        await tapVisible(
+          tester,
+          find.byKey(const Key('request_submit_button')),
+        );
+        expect(find.textContaining('Solicitud enviada'), findsWidgets);
+        expect(store.proposals.length, 1);
       },
     );
 

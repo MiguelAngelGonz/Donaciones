@@ -131,6 +131,7 @@ class PublishItemController extends StateNotifier<PublishItemState> {
     if (state.fotografias.length >= 5) {
       state = state.copyWith(
         photosError: 'Máximo 5 fotografías permitidas (5/5).',
+        publishedPublication: null,
       );
       return false;
     }
@@ -142,6 +143,7 @@ class PublishItemController extends StateNotifier<PublishItemState> {
     state = state.copyWith(
       fotografias: List.unmodifiable([...state.fotografias, nextPhoto]),
       photosError: null,
+      publishedPublication: null,
     );
     return true;
   }
@@ -150,12 +152,14 @@ class PublishItemController extends StateNotifier<PublishItemState> {
     if (state.fotografias.length >= 5) {
       state = state.copyWith(
         photosError: 'Máximo 5 fotografías permitidas (5/5).',
+        publishedPublication: null,
       );
       return false;
     }
     state = state.copyWith(
       fotografias: List.unmodifiable([...state.fotografias, path]),
       photosError: null,
+      publishedPublication: null,
     );
     return true;
   }
@@ -166,19 +170,32 @@ class PublishItemController extends StateNotifier<PublishItemState> {
     state = state.copyWith(
       fotografias: List.unmodifiable(updated),
       photosError: null,
+      publishedPublication: null,
     );
   }
 
   void setTitulo(String value) {
-    state = state.copyWith(titulo: value, tituloError: null);
+    state = state.copyWith(
+      titulo: value,
+      tituloError: null,
+      publishedPublication: null,
+    );
   }
 
   void setDescripcion(String value) {
-    state = state.copyWith(descripcion: value, descripcionError: null);
+    state = state.copyWith(
+      descripcion: value,
+      descripcionError: null,
+      publishedPublication: null,
+    );
   }
 
   void setCategoriaId(String? categoryId) {
-    state = state.copyWith(categoriaId: categoryId, categoriaError: null);
+    state = state.copyWith(
+      categoriaId: categoryId,
+      categoriaError: null,
+      publishedPublication: null,
+    );
   }
 
   void setCantidadFromText(String raw) {
@@ -188,15 +205,30 @@ class PublishItemController extends StateNotifier<PublishItemState> {
       cantidadError: parsed >= 1
           ? null
           : 'La cantidad disponible debe ser al menos 1.',
+      publishedPublication: null,
     );
   }
 
   void setCondicion(CondicionArticulo condicion) {
-    state = state.copyWith(condicion: condicion, condicionError: null);
+    state = state.copyWith(
+      condicion: condicion,
+      condicionError: null,
+      publishedPublication: null,
+    );
   }
 
   void setUbicacionEtiqueta(String value) {
-    state = state.copyWith(ubicacionEtiqueta: value, ubicacionError: null);
+    state = state.copyWith(
+      ubicacionEtiqueta: value,
+      ubicacionError: null,
+      publishedPublication: null,
+    );
+  }
+
+  void clearPublishedBanner() {
+    if (state.publishedPublication != null) {
+      state = state.copyWith(publishedPublication: null);
+    }
   }
 
   Future<PublicacionMock?> submit({
@@ -267,10 +299,11 @@ class PublishItemController extends StateNotifier<PublishItemState> {
           ubicacionEtiqueta: ubicacion,
         ),
       );
-      state = state.copyWith(
-        isSubmitting: false,
+      final defaultLocation =
+          _store.activeUser?.ubicacionAproximada.etiqueta ?? '';
+      state = PublishItemState(
+        ubicacionEtiqueta: defaultLocation,
         publishedPublication: created,
-        submissionError: null,
       );
       return created;
     } on NetworkException catch (e) {
