@@ -3,6 +3,8 @@ import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
 import 'package:donaciones/features/auth/presentation/login_screen.dart';
 import 'package:donaciones/features/auth/presentation/register_screen.dart';
 import 'package:donaciones/features/auth/presentation/reset_password_screen.dart';
+import 'package:donaciones/features/donations/presentation/donation_tracking_screen.dart';
+import 'package:donaciones/features/donations/presentation/donations_hub_screen.dart';
 import 'package:donaciones/features/matching/presentation/matches_screen.dart';
 import 'package:donaciones/features/profile/presentation/profile_screen.dart';
 import 'package:donaciones/features/publications/presentation/create_publication_screen.dart';
@@ -38,11 +40,7 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
           ),
           GoRoute(
             path: '/donations',
-            builder: (context, state) => const _TabPlaceholderScreen(
-              icon: Icons.volunteer_activism_outlined,
-              title: 'Donaciones',
-              subtitle: 'Propuestas, entregas en curso e historial.',
-            ),
+            builder: (context, state) => const DonationsHubScreen(),
           ),
           GoRoute(
             path: '/profile',
@@ -70,9 +68,8 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
       ),
       GoRoute(
         path: '/donations/:id',
-        builder: (context, state) => _StandalonePlaceholderScreen(
-          title: 'Seguimiento de donación',
-          subtitle: 'Donación ${state.pathParameters['id'] ?? ''}',
+        builder: (context, state) => DonationTrackingScreen(
+          donationId: state.pathParameters['id'] ?? '',
         ),
       ),
       GoRoute(

@@ -4,7 +4,9 @@ import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
 import 'package:donaciones/features/auth/presentation/auth_form_widgets.dart';
+import 'package:donaciones/features/donations/presentation/donation_ui_helpers.dart';
 import 'package:donaciones/features/proposals/presentation/offer_item_sheet.dart';
+import 'package:donaciones/features/proposals/presentation/received_proposal_card.dart';
 import 'package:donaciones/features/proposals/presentation/request_item_sheet.dart';
 import 'package:donaciones/features/publications/presentation/edit_publication_sheet.dart';
 import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
@@ -27,6 +29,9 @@ class _PublicationDetailScreenState
     extends ConsumerState<PublicationDetailScreen> {
   String? _actionError;
   bool _isWithdrawing = false;
+  String? _busyProposalId;
+  DonacionMock? _acceptedDonation;
+  int _proposalSeq = 0;
 
   void _navigateBack() {
     final router = GoRouter.maybeOf(context);
@@ -38,6 +43,81 @@ class _PublicationDetailScreenState
       }
     } else if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _acceptProposal(PropuestaMock proposal) async {
+    if (_busyProposalId != null) return;
+    final store = ref.read(mockTenantStoreProvider);
+    final clientKey =
+        'detail-acc-${proposal.id}-${++_proposalSeq}-${store.currentTime.microsecondsSinceEpoch}';
+
+    setState(() {
+      _busyProposalId = proposal.id;
+      _actionError = null;
+      _acceptedDonation = null;
+    });
+
+    String? errorMsg;
+    final donation = await runAcceptProposal(
+      store: store,
+      proposalId: proposal.id,
+      clientKey: clientKey,
+      onError: (msg) => errorMsg = msg,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _busyProposalId = null;
+      _actionError = errorMsg;
+      _acceptedDonation = donation;
+    });
+
+    if (donation != null) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: const Text('Propuesta aceptada. Donación iniciada.'),
+          action: SnackBarAction(
+            label: 'Ver seguimiento',
+            onPressed: () =>
+                GoRouter.maybeOf(context)?.push('/donations/${donation.id}'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _rejectProposal(PropuestaMock proposal) async {
+    if (_busyProposalId != null) return;
+    final reason = await showRejectProposalReasonDialog(context);
+    if (reason == null || !mounted) return;
+
+    final store = ref.read(mockTenantStoreProvider);
+    setState(() {
+      _busyProposalId = proposal.id;
+      _actionError = null;
+    });
+
+    String? errorMsg;
+    final ok = await runRejectProposal(
+      store: store,
+      proposalId: proposal.id,
+      reason: reason,
+      onError: (msg) => errorMsg = msg,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _busyProposalId = null;
+      _actionError = errorMsg;
+    });
+
+    if (ok) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Propuesta rechazada. La publicación sigue activa.'),
+        ),
+      );
     }
   }
 
@@ -124,8 +204,14 @@ class _PublicationDetailScreenState
                     store: store,
                     actionError: _actionError,
                     isWithdrawing: _isWithdrawing,
+                    busyProposalId: _busyProposalId,
+                    acceptedDonation: _acceptedDonation,
                     onEdit: () => showEditPublicationSheet(context, pub),
                     onWithdraw: () => _confirmAndWithdraw(pub),
+                    onAcceptProposal: _acceptProposal,
+                    onRejectProposal: _rejectProposal,
+                    onOpenDonation: (donationId) =>
+                        GoRouter.maybeOf(context)?.push('/donations/$donationId'),
                     onRequestItem: () => showModalBottomSheet<void>(
                       context: context,
                       isScrollControlled: true,
@@ -181,8 +267,13 @@ class _DetailBody extends StatelessWidget {
   final MockTenantStore store;
   final String? actionError;
   final bool isWithdrawing;
+  final String? busyProposalId;
+  final DonacionMock? acceptedDonation;
   final VoidCallback onEdit;
   final VoidCallback onWithdraw;
+  final ValueChanged<PropuestaMock> onAcceptProposal;
+  final ValueChanged<PropuestaMock> onRejectProposal;
+  final ValueChanged<String> onOpenDonation;
   final VoidCallback onRequestItem;
   final VoidCallback onOfferItem;
   final VoidCallback onGoLogin;
@@ -193,8 +284,13 @@ class _DetailBody extends StatelessWidget {
     required this.store,
     required this.actionError,
     required this.isWithdrawing,
+    required this.busyProposalId,
+    required this.acceptedDonation,
     required this.onEdit,
     required this.onWithdraw,
+    required this.onAcceptProposal,
+    required this.onRejectProposal,
+    required this.onOpenDonation,
     required this.onRequestItem,
     required this.onOfferItem,
     required this.onGoLogin,
@@ -424,12 +520,35 @@ class _DetailBody extends StatelessWidget {
                   tone: PublicationBannerTone.error,
                 ),
               ],
+              if (acceptedDonation != null &&
+                  store.findDonationById(acceptedDonation!.id) != null &&
+                  acceptedDonation!.publicacionId == publication.id &&
+                  (activeUser?.id == acceptedDonation!.donanteId ||
+                      activeUser?.id == acceptedDonation!.donatarioId)) ...[
+                const SizedBox(height: 14),
+                PublicationStatusBanner(
+                  message:
+                      '¡Propuesta aceptada! Se inició la donación ${acceptedDonation!.id}.',
+                  tone: PublicationBannerTone.success,
+                  trailing: FilledButton.icon(
+                    onPressed: () => onOpenDonation(acceptedDonation!.id),
+                    icon: const Icon(Icons.local_shipping_outlined),
+                    label: const Text('Ver seguimiento de donación'),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               _buildActionArea(
                 activeUser: activeUser,
                 isAuthor: isAuthor,
                 isNeed: isNeed,
               ),
+              if (isAuthor &&
+                  activeUser != null &&
+                  publication.estado == EstadoPublicacion.activa) ...[
+                const SizedBox(height: 20),
+                _buildAuthorProposalsSection(activeUser),
+              ],
               const SizedBox(height: 16),
             ],
           ),
@@ -549,6 +668,49 @@ class _DetailBody extends StatelessWidget {
       onPressed: onRequestItem,
       icon: const Icon(Icons.send_outlined),
       label: const Text('Solicitar artículo'),
+    );
+  }
+
+  Widget _buildAuthorProposalsSection(UsuarioMock activeUser) {
+    final pending = store.getReceivedPendingProposals(
+      activeUser.id,
+      publicationId: publication.id,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Propuestas recibidas (${pending.length})',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (pending.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(14),
+              child: Text(
+                'Aún no tienes propuestas pendientes para esta publicación.',
+              ),
+            ),
+          )
+        else
+          for (final proposal in pending) ...[
+            ReceivedProposalCard(
+              proposal: proposal,
+              publication: publication,
+              sender: store.findUserById(proposal.remitenteId),
+              showPublicationTitle: false,
+              isBusy: busyProposalId == proposal.id,
+              onAccept: () => onAcceptProposal(proposal),
+              onReject: () => onRejectProposal(proposal),
+            ),
+            const SizedBox(height: 10),
+          ],
+      ],
     );
   }
 }
