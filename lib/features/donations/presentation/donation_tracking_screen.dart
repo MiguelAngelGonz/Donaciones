@@ -26,6 +26,7 @@ class _DonationTrackingScreenState
   final _placeController = TextEditingController();
   final _chatController = TextEditingController();
   final _reviewCommentController = TextEditingController();
+  final _pendingActionKeys = PendingActionKeys();
 
   DateTime? _selectedDeliveryDate;
   String? _placeError;
@@ -37,7 +38,6 @@ class _DonationTrackingScreenState
   bool _isSendingMessage = false;
   bool _isSubmittingReview = false;
   int _selectedRating = 0;
-  int _actionSeq = 0;
 
   @override
   void dispose() {
@@ -59,9 +59,6 @@ class _DonationTrackingScreenState
       Navigator.of(context).pop();
     }
   }
-
-  String _nextClientKey(String prefix, MockTenantStore store) =>
-      '$prefix-${widget.donationId}-${++_actionSeq}-${store.currentTime.microsecondsSinceEpoch}';
 
   Future<void> _pickDeliveryDate(MockTenantStore store) async {
     final current = _selectedDeliveryDate ??
@@ -85,35 +82,42 @@ class _DonationTrackingScreenState
   }
 
   Future<void> _runDonationAction(
-    Future<void> Function() action, {
+    Future<void> Function(String clientKey) action, {
+    required String operationKey,
     required String successMessage,
   }) async {
     if (_isProcessingAction) return;
+    final store = ref.read(mockTenantStoreProvider);
+    final clientKey = _pendingActionKeys.getOrCreate(operationKey, store);
     setState(() {
       _isProcessingAction = true;
       _actionError = null;
     });
 
     try {
-      await action();
+      await action(clientKey);
+      _pendingActionKeys.clear(operationKey);
       if (!mounted) return;
       setState(() => _isProcessingAction = false);
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text(successMessage)),
       );
     } on NetworkException catch (e) {
+      // Retain clientKey across NetworkException so retries stay idempotent (RNF-11).
       if (!mounted) return;
       setState(() {
         _isProcessingAction = false;
         _actionError = e.message;
       });
     } on ValidationException catch (e) {
+      _pendingActionKeys.clear(operationKey);
       if (!mounted) return;
       setState(() {
         _isProcessingAction = false;
         _actionError = e.message;
       });
     } on UnauthorizedActionException catch (e) {
+      _pendingActionKeys.clear(operationKey);
       if (!mounted) return;
       setState(() {
         _isProcessingAction = false;
@@ -139,12 +143,13 @@ class _DonationTrackingScreenState
         _selectedDeliveryDate ?? store.currentTime.add(const Duration(days: 1));
 
     await _runDonationAction(
-      () => store.registerDeliverySchedule(
+      (clientKey) => store.registerDeliverySchedule(
         donationId: donation.id,
         place: place,
         scheduledDate: scheduledDate,
-        clientKey: _nextClientKey('sched', store),
+        clientKey: clientKey,
       ),
+      operationKey: 'sched-${donation.id}',
       successMessage:
           'Lugar y fecha acordados registrados. Estado: En entrega.',
     );
@@ -153,10 +158,11 @@ class _DonationTrackingScreenState
   Future<void> _markDelivered(DonacionMock donation) async {
     final store = ref.read(mockTenantStoreProvider);
     await _runDonationAction(
-      () => store.markDonationDelivered(
+      (clientKey) => store.markDonationDelivered(
         donationId: donation.id,
-        clientKey: _nextClientKey('deliv', store),
+        clientKey: clientKey,
       ),
+      operationKey: 'deliv-${donation.id}',
       successMessage: 'Donación marcada como Entregada.',
     );
   }
@@ -164,10 +170,11 @@ class _DonationTrackingScreenState
   Future<void> _confirmReceived(DonacionMock donation) async {
     final store = ref.read(mockTenantStoreProvider);
     await _runDonationAction(
-      () => store.confirmDonationReceived(
+      (clientKey) => store.confirmDonationReceived(
         donationId: donation.id,
-        clientKey: _nextClientKey('conf', store),
+        clientKey: clientKey,
       ),
+      operationKey: 'conf-${donation.id}',
       successMessage: 'Recepción confirmada. ¡Donación finalizada!',
     );
   }
@@ -175,14 +182,28 @@ class _DonationTrackingScreenState
   Future<void> _openCancelDonationDialog(DonacionMock donation) async {
     if (_isProcessingAction) return;
     final store = ref.read(mockTenantStoreProvider);
+    final opKey = 'cancel-${donation.id}';
     final cancelled = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => _CancelDonationDialog(
-        onConfirm: (reason) => store.cancelDonation(
-          donationId: donation.id,
-          reason: reason,
-          clientKey: _nextClientKey('cancel', store),
-        ),
+        onConfirm: (reason) async {
+          final clientKey = _pendingActionKeys.getOrCreate(opKey, store);
+          try {
+            final result = await store.cancelDonation(
+              donationId: donation.id,
+              reason: reason,
+              clientKey: clientKey,
+            );
+            _pendingActionKeys.clear(opKey);
+            return result;
+          } on ValidationException {
+            _pendingActionKeys.clear(opKey);
+            rethrow;
+          } on UnauthorizedActionException {
+            _pendingActionKeys.clear(opKey);
+            rethrow;
+          }
+        },
       ),
     );
 

@@ -37,25 +37,50 @@ String formatDonationDate(DateTime dt) {
   return '${two(dt.day)}/${two(dt.month)}/${dt.year}';
 }
 
+/// Retains in-flight idempotency keys across [NetworkException] retries (RNF-11).
+class PendingActionKeys {
+  static int _globalSeq = 0;
+  final Map<String, String> _keys = {};
+
+  /// Returns an existing key for [operationKey] or generates a unique new one.
+  String getOrCreate(String operationKey, MockTenantStore store) {
+    return _keys[operationKey] ??=
+        '$operationKey-${++_globalSeq}-${store.currentTime.microsecondsSinceEpoch}';
+  }
+
+  /// Clears the stored key for [operationKey] once the operation completes or fails validation.
+  void clear(String operationKey) {
+    _keys.remove(operationKey);
+  }
+}
+
 /// Executes [store.acceptProposal] and maps domain exceptions to [onError].
+///
+/// Calls [onClearClientKey] on completion or non-network validation errors,
+/// preserving the key across [NetworkException] retries (RNF-11).
 Future<DonacionMock?> runAcceptProposal({
   required MockTenantStore store,
   required String proposalId,
   required String clientKey,
   required ValueChanged<String> onError,
+  VoidCallback? onClearClientKey,
 }) async {
   try {
-    return await store.acceptProposal(
+    final donation = await store.acceptProposal(
       proposalId: proposalId,
       clientKey: clientKey,
     );
+    onClearClientKey?.call();
+    return donation;
   } on NetworkException catch (e) {
     onError(e.message);
     return null;
   } on ValidationException catch (e) {
+    onClearClientKey?.call();
     onError(e.message);
     return null;
   } on UnauthorizedActionException catch (e) {
+    onClearClientKey?.call();
     onError(e.message);
     return null;
   }

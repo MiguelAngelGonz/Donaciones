@@ -17,8 +17,8 @@ class DonationsHubScreen extends ConsumerStatefulWidget {
 }
 
 class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
+  final _pendingAcceptKeys = PendingActionKeys();
   String? _busyProposalId;
-  int _actionSeq = 0;
   String? _actionError;
   DonacionMock? _acceptedDonation;
 
@@ -38,8 +38,8 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
   Future<void> _acceptProposal(PropuestaMock proposal) async {
     if (_busyProposalId != null) return;
     final store = ref.read(mockTenantStoreProvider);
-    final clientKey =
-        'hub-acc-${proposal.id}-${++_actionSeq}-${store.currentTime.microsecondsSinceEpoch}';
+    final opKey = 'hub-acc-${proposal.id}';
+    final clientKey = _pendingAcceptKeys.getOrCreate(opKey, store);
 
     setState(() {
       _busyProposalId = proposal.id;
@@ -53,6 +53,7 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
       proposalId: proposal.id,
       clientKey: clientKey,
       onError: (msg) => errorMsg = msg,
+      onClearClientKey: () => _pendingAcceptKeys.clear(opKey),
     );
 
     if (!mounted) return;
@@ -231,6 +232,16 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
     required List<PropuestaMock> sent,
   }) {
     final theme = Theme.of(context);
+    final liveAcceptedDonation = _acceptedDonation == null
+        ? null
+        : store.findDonationById(_acceptedDonation!.id);
+    final showAcceptedBanner =
+        liveAcceptedDonation != null &&
+        liveAcceptedDonation.estado != EstadoDonacion.cancelada &&
+        (store.activeUser?.id == liveAcceptedDonation.donanteId ||
+            store.activeUser?.id == liveAcceptedDonation.donatarioId ||
+            store.activeUser?.id == liveAcceptedDonation.intermediarioId);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -247,19 +258,15 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                if (_acceptedDonation != null &&
-                    store.findDonationById(_acceptedDonation!.id) != null &&
-                    (store.activeUser?.id == _acceptedDonation!.donanteId ||
-                        store.activeUser?.id ==
-                            _acceptedDonation!.donatarioId)) ...[
+                if (showAcceptedBanner) ...[
                   PublicationStatusBanner(
                     message:
-                        '¡Propuesta aceptada! Se inició la donación ${_acceptedDonation!.id}.',
+                        '¡Propuesta aceptada! Se inició la donación ${liveAcceptedDonation.id}.',
                     tone: PublicationBannerTone.success,
                     trailing: FilledButton.icon(
                       key: const Key('accepted_donation_track_button'),
                       onPressed: () => _goRoute(
-                        '/donations/${_acceptedDonation!.id}',
+                        '/donations/${liveAcceptedDonation.id}',
                         push: true,
                       ),
                       icon: const Icon(Icons.local_shipping_outlined),

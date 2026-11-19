@@ -27,11 +27,11 @@ class PublicationDetailScreen extends ConsumerStatefulWidget {
 
 class _PublicationDetailScreenState
     extends ConsumerState<PublicationDetailScreen> {
+  final _pendingAcceptKeys = PendingActionKeys();
   String? _actionError;
   bool _isWithdrawing = false;
   String? _busyProposalId;
   DonacionMock? _acceptedDonation;
-  int _proposalSeq = 0;
 
   void _navigateBack() {
     final router = GoRouter.maybeOf(context);
@@ -49,8 +49,8 @@ class _PublicationDetailScreenState
   Future<void> _acceptProposal(PropuestaMock proposal) async {
     if (_busyProposalId != null) return;
     final store = ref.read(mockTenantStoreProvider);
-    final clientKey =
-        'detail-acc-${proposal.id}-${++_proposalSeq}-${store.currentTime.microsecondsSinceEpoch}';
+    final opKey = 'detail-acc-${proposal.id}';
+    final clientKey = _pendingAcceptKeys.getOrCreate(opKey, store);
 
     setState(() {
       _busyProposalId = proposal.id;
@@ -64,6 +64,7 @@ class _PublicationDetailScreenState
       proposalId: proposal.id,
       clientKey: clientKey,
       onError: (msg) => errorMsg = msg,
+      onClearClientKey: () => _pendingAcceptKeys.clear(opKey),
     );
 
     if (!mounted) return;
@@ -520,23 +521,35 @@ class _DetailBody extends StatelessWidget {
                   tone: PublicationBannerTone.error,
                 ),
               ],
-              if (acceptedDonation != null &&
-                  store.findDonationById(acceptedDonation!.id) != null &&
-                  acceptedDonation!.publicacionId == publication.id &&
-                  (activeUser?.id == acceptedDonation!.donanteId ||
-                      activeUser?.id == acceptedDonation!.donatarioId)) ...[
-                const SizedBox(height: 14),
-                PublicationStatusBanner(
-                  message:
-                      '¡Propuesta aceptada! Se inició la donación ${acceptedDonation!.id}.',
-                  tone: PublicationBannerTone.success,
-                  trailing: FilledButton.icon(
-                    onPressed: () => onOpenDonation(acceptedDonation!.id),
-                    icon: const Icon(Icons.local_shipping_outlined),
-                    label: const Text('Ver seguimiento de donación'),
-                  ),
+              if (acceptedDonation != null)
+                Builder(
+                  builder: (_) {
+                    final liveDonation = store.findDonationById(
+                      acceptedDonation!.id,
+                    );
+                    final showBanner =
+                        liveDonation != null &&
+                        liveDonation.estado != EstadoDonacion.cancelada &&
+                        liveDonation.publicacionId == publication.id &&
+                        (activeUser?.id == liveDonation.donanteId ||
+                            activeUser?.id == liveDonation.donatarioId ||
+                            activeUser?.id == liveDonation.intermediarioId);
+                    if (!showBanner) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: PublicationStatusBanner(
+                        message:
+                            '¡Propuesta aceptada! Se inició la donación ${liveDonation.id}.',
+                        tone: PublicationBannerTone.success,
+                        trailing: FilledButton.icon(
+                          onPressed: () => onOpenDonation(liveDonation.id),
+                          icon: const Icon(Icons.local_shipping_outlined),
+                          label: const Text('Ver seguimiento de donación'),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ],
               const SizedBox(height: 16),
               _buildActionArea(
                 activeUser: activeUser,
