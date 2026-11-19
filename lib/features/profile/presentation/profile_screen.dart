@@ -3,6 +3,7 @@ import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
 import 'package:donaciones/features/auth/presentation/auth_form_widgets.dart';
+import 'package:donaciones/features/intermediary/presentation/request_intermediary_sheet.dart';
 import 'package:donaciones/features/profile/presentation/edit_profile_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +44,7 @@ class ProfileScreen extends ConsumerWidget {
     }
 
     final reviews = store.getReviewsForUser(activeUser.id);
-    final intermediaryRequests = store.intermediaryRequests
+    final intermediaryRequests = store.intermediaryRequests.reversed
         .where((r) => r.usuarioId == activeUser.id)
         .toList()
       ..sort((a, b) => b.fechaSolicitud.compareTo(a.fechaSolicitud));
@@ -75,15 +76,7 @@ class ProfileScreen extends ConsumerWidget {
                 user: activeUser,
                 latestRequest: latestIntermediaryRequest,
                 onRequestIntermediary: onRequestIntermediary ??
-                    () {
-                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Solicitud de rol de intermediario disponible en el módulo de intermediarios.',
-                          ),
-                        ),
-                      );
-                    },
+                    () => showRequestIntermediarySheet(context),
               ),
               if (activeUser.esAdministrador) ...[
                 const SizedBox(height: 14),
