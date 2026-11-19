@@ -3,7 +3,11 @@ import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
 import 'package:donaciones/features/auth/presentation/login_screen.dart';
 import 'package:donaciones/features/auth/presentation/register_screen.dart';
 import 'package:donaciones/features/auth/presentation/reset_password_screen.dart';
+import 'package:donaciones/features/matching/presentation/matches_screen.dart';
 import 'package:donaciones/features/profile/presentation/profile_screen.dart';
+import 'package:donaciones/features/publications/presentation/create_publication_screen.dart';
+import 'package:donaciones/features/publications/presentation/feed_screen.dart';
+import 'package:donaciones/features/publications/presentation/publication_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,27 +26,15 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => const _TabPlaceholderScreen(
-              icon: Icons.home_outlined,
-              title: 'Inicio',
-              subtitle: 'Explora necesidades y artículos disponibles.',
-            ),
+            builder: (context, state) => const FeedScreen(),
           ),
           GoRoute(
             path: '/matches',
-            builder: (context, state) => const _TabPlaceholderScreen(
-              icon: Icons.handshake_outlined,
-              title: 'Coincidencias',
-              subtitle: 'Cruce automático por categoría y cercanía.',
-            ),
+            builder: (context, state) => const MatchesScreen(),
           ),
           GoRoute(
             path: '/create',
-            builder: (context, state) => const _TabPlaceholderScreen(
-              icon: Icons.add_circle_outline,
-              title: 'Publicar',
-              subtitle: 'Publica una necesidad o un artículo para donar.',
-            ),
+            builder: (context, state) => const CreatePublicationScreen(),
           ),
           GoRoute(
             path: '/donations',
@@ -72,9 +64,8 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
       ),
       GoRoute(
         path: '/publications/:id',
-        builder: (context, state) => _StandalonePlaceholderScreen(
-          title: 'Detalle de publicación',
-          subtitle: 'Publicación ${state.pathParameters['id'] ?? ''}',
+        builder: (context, state) => PublicationDetailScreen(
+          publicationId: state.pathParameters['id'] ?? '',
         ),
       ),
       GoRoute(
