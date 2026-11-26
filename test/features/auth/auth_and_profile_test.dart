@@ -666,5 +666,41 @@ void main() {
         expect(find.textContaining('Gratuidad obligatoria'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'ProfileAvatarSelector permite elegir foto de cámara/galería y ProfileAvatarCircle maneja file:// inexistente sin error',
+      (tester) async {
+        final (store, _) = await pumpAppAtRoute(tester, '/profile');
+        store.setActiveUser('usr-diego');
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Editar perfil'));
+        await tester.tap(find.text('Editar perfil'));
+        await tester.pumpAndSettle();
+
+        final devicePhotoChip =
+            find.byKey(const Key('profile_avatar_device_photo_chip'));
+        await tester.ensureVisible(devicePhotoChip);
+        await tester.tap(devicePhotoChip);
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Guardar cambios'));
+        await tester.tap(find.text('Guardar cambios'));
+        await tester.pumpAndSettle();
+
+        expect(
+          store.findUserById('usr-diego')?.fotoPerfil,
+          'device://avatar_galeria.jpg',
+        );
+
+        // Fallback safety when fotoPerfil has a non-existent file:// URI
+        await store.updateProfile(
+          fotoPerfil: 'file:///non_existent_avatar_test.jpg',
+          telefono: '2225550199',
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

@@ -307,11 +307,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   ) {
     final avatarLabel = state.photoPerfil == null
         ? 'Sin fotografía'
-        : sampleProfileAvatars
-            .where((a) => a.path == state.photoPerfil)
-            .map((a) => a.label)
-            .firstOrNull ??
-            'Foto seleccionada';
+        : (state.photoPerfil!.startsWith('device://') ||
+                  state.photoPerfil!.startsWith('file://'))
+            ? 'Fotografía del dispositivo'
+            : sampleProfileAvatars
+                    .where((a) => a.path == state.photoPerfil)
+                    .map((a) => a.label)
+                    .firstOrNull ??
+                'Foto seleccionada';
 
     return Card(
       child: Padding(

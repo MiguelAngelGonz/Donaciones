@@ -172,6 +172,35 @@ void main() {
         expect(find.text('Solicitar rol de intermediario'), findsNothing);
       },
     );
+
+    testWidgets(
+      'CU-40 & CU-41: permite adjuntar foto de respaldo desde cámara/galería del dispositivo',
+      (tester) async {
+        final (store, _) = await pumpAppAtRoute(tester, '/profile');
+        store.setActiveUser('usr-diego');
+        await tester.pumpAndSettle();
+
+        await tapVisible(tester, find.text('Solicitar rol de intermediario'));
+        await enterTextAndSettle(
+          tester,
+          find.byKey(const Key('intermediary_organization_field')),
+          'Brigada Comunitaria BUAP',
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const Key('intermediary_doc_device_photo')),
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const Key('intermediary_submit_button')),
+        );
+
+        expect(find.textContaining('Solicitud enviada'), findsOneWidget);
+        final createdReq = store.intermediaryRequests.last;
+        expect(createdReq.documentoNombre, 'constancia_camara_dispositivo.jpg');
+        expect(createdReq.documentoBytesSimulados, 942080);
+      },
+    );
   });
 
   group('CU-42 a CU-45: Panel de Administración - Intermediarios', () {

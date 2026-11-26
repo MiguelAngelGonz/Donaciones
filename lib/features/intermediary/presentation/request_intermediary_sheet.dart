@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:donaciones/app/theme.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_exceptions.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 /// Opens the modal bottom sheet to request the community intermediary role (CU-40, CU-41).
 Future<void> showRequestIntermediarySheet(BuildContext context) {
@@ -92,7 +97,93 @@ class _RequestIntermediarySheetState
   String? _docError;
   String? _submitError;
   bool _isSubmitting = false;
+  bool _pickingDeviceDoc = false;
   SolicitudRolIntermediarioMock? _submittedRequest;
+
+  String _formatSizeBytes(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    final kb = (bytes / 1024).round();
+    return '${kb < 1 ? 1 : kb} KB';
+  }
+
+  Future<void> _pickDeviceDocument() async {
+    if (!usesAndroidDeviceAccess) {
+      _selectDocument(
+        const _SimulatedDocumentOption(
+          chipKey: Key('intermediary_doc_device_photo'),
+          name: 'constancia_camara_dispositivo.jpg',
+          bytes: 942080,
+          sizeLabel: '920 KB',
+        ),
+      );
+      return;
+    }
+    if (_pickingDeviceDoc) return;
+    setState(() => _pickingDeviceDoc = true);
+    try {
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Tomar foto del documento con la cámara'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Seleccionar imagen desde galería'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted) return;
+      final picker = ImagePickerAndroid()..useAndroidPhotoPicker = true;
+      final photo = await picker.getImageFromSource(
+        source: source,
+        options: const ImagePickerOptions(
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 85,
+          requestFullMetadata: false,
+        ),
+      );
+      if (photo == null || !mounted) return;
+      final file = File(photo.path);
+      final bytes = await file.length();
+      if (!mounted) return;
+      final rawName = photo.path.split(Platform.pathSeparator).last.trim();
+      final docName = rawName.isEmpty ? 'documento_camara.jpg' : rawName;
+      _selectDocument(
+        _SimulatedDocumentOption(
+          chipKey: const Key('intermediary_doc_device_photo'),
+          name: docName,
+          bytes: bytes,
+          sizeLabel: _formatSizeBytes(bytes),
+        ),
+      );
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'camera_access_denied' =>
+          'Permite el acceso a la cámara en los ajustes de Android o elige una imagen de la galería.',
+        'no_available_camera' => 'No hay una cámara disponible.',
+        _ => 'No se pudo adjuntar la imagen del documento.',
+      };
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _pickingDeviceDoc = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -337,6 +428,20 @@ class _RequestIntermediarySheetState
                               ? (_) => _selectDocument(doc)
                               : null,
                         ),
+                      ChoiceChip(
+                        key: const Key('intermediary_doc_device_photo'),
+                        avatar: const Icon(
+                          Icons.add_a_photo_outlined,
+                          size: 16,
+                        ),
+                        label: const Text('Cámara o galería'),
+                        selected:
+                            _selectedDoc?.chipKey ==
+                            const Key('intermediary_doc_device_photo'),
+                        onSelected: (formEnabled && !_pickingDeviceDoc)
+                            ? (_) => _pickDeviceDocument()
+                            : null,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
