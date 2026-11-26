@@ -1,6 +1,7 @@
 import 'package:donaciones/app/theme.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
+import 'package:donaciones/core/widgets/legal_documents_sheet.dart';
 import 'package:donaciones/features/auth/presentation/auth_form_widgets.dart';
 import 'package:donaciones/features/auth/presentation/register_controller.dart';
 import 'package:flutter/material.dart';
@@ -353,7 +354,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             const SizedBox(height: 12),
             Container(
-              height: 130,
+              height: 150,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -365,7 +366,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Aviso de Privacidad de DonaPlus',
+                      'Aviso de Privacidad y Términos de Uso de DonaPlus',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -375,13 +376,40 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       'DonaPlus protege tus datos personales conforme al principio de minimización (RNF-09). '
                       'Tu ubicación se limita únicamente a colonia o código postal y nunca solicitamos ni mostramos tu domicilio exacto. '
                       'Tu teléfono permanece oculto en las conversaciones salvo que decidas compartirlo explícitamente durante una donación. '
-                      'Tu contraseña se transforma mediante resumen criptográfico SHA-256 (RNF-07) y nunca se almacena en texto plano.',
+                      'Tu contraseña se transforma mediante resumen criptográfico SHA-256 (RNF-07) y nunca se almacena en texto plano.\n\n'
+                      'Términos de Uso: Todas las donaciones son 100% gratuitas (queda prohibida la venta o cobro), '
+                      'los alimentos deben entregarse en envases cerrados con fecha de caducidad vigente y las entregas se coordinan en puntos seguros.',
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton.icon(
+                  key: const Key('register_open_privacy_button'),
+                  onPressed: () => showLegalDocumentsSheet(
+                    context,
+                    initialTab: LegalDocumentTab.privacy,
+                  ),
+                  icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+                  label: const Text('Ver Aviso de Privacidad'),
+                ),
+                TextButton.icon(
+                  key: const Key('register_open_terms_button'),
+                  onPressed: () => showLegalDocumentsSheet(
+                    context,
+                    initialTab: LegalDocumentTab.terms,
+                  ),
+                  icon: const Icon(Icons.gavel_outlined, size: 18),
+                  label: const Text('Ver Términos y Condiciones'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
@@ -390,6 +418,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ? null
                   : (checked) => controller.setPrivacyAccepted(checked ?? false),
               title: const Text('He leído y acepto el aviso de privacidad'),
+              subtitle: const Text(
+                'Incluye los Términos y Condiciones de Uso de DonaPlus.',
+              ),
             ),
             if (state.privacyError != null) ...[
               const SizedBox(height: 6),

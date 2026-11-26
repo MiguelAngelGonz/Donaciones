@@ -1,6 +1,7 @@
 import 'package:donaciones/app/theme.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
+import 'package:donaciones/core/widgets/legal_documents_sheet.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
 import 'package:donaciones/features/auth/presentation/auth_form_widgets.dart';
 import 'package:donaciones/features/intermediary/presentation/request_intermediary_sheet.dart';
@@ -84,6 +85,8 @@ class ProfileScreen extends ConsumerWidget {
                   onOpenAdmin: () => _goRoute(context, '/admin', push: true),
                 ),
               ],
+              const SizedBox(height: 14),
+              const LegalAndPermissionsCard(),
               const SizedBox(height: 18),
               OutlinedButton.icon(
                 onPressed: () {
@@ -155,6 +158,8 @@ class _LoggedOutProfileView extends StatelessWidget {
                     onPressed: onRegister,
                     child: const Text('Registrarse'),
                   ),
+                  const SizedBox(height: 16),
+                  const LegalAndPermissionsCard(),
                 ],
               ),
             ),

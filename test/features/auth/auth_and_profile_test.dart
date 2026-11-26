@@ -562,5 +562,109 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+
+    testWidgets(
+      'LegalDocumentsSheet y LegalAndPermissionsCard funcionan en Perfil (con y sin sesión) y en Registro Paso 3',
+      (tester) async {
+        final (store, container) = await pumpAppAtRoute(tester, '/profile');
+        final router = container.read(appRouterProvider);
+
+        // 1. Logged-in Profile shows LegalAndPermissionsCard & toggles location (CU-21 / RNF-08)
+        expect(find.text('Privacidad, Términos y Permisos'), findsOneWidget);
+        expect(store.isDeviceLocationAuthorized, isFalse);
+
+        final locSwitch = find.byKey(const Key('profile_device_location_switch'));
+        await tester.ensureVisible(locSwitch);
+        await tester.tap(locSwitch);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Autorizar ubicación del dispositivo'), findsOneWidget);
+        await tester.tap(find.text('Denegar'));
+        await tester.pumpAndSettle();
+        expect(store.isDeviceLocationAuthorized, isFalse);
+
+        await tester.tap(locSwitch);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Permitir'));
+        await tester.pumpAndSettle();
+        expect(store.isDeviceLocationAuthorized, isTrue);
+
+        // Turning it off disables device location immediately
+        await tester.tap(locSwitch);
+        await tester.pumpAndSettle();
+        expect(store.isDeviceLocationAuthorized, isFalse);
+
+        // 2. Open Términos y Condiciones modal and switch to Aviso de Privacidad tab
+        final termsBtn = find.byKey(const Key('open_terms_conditions_button'));
+        await tester.ensureVisible(termsBtn);
+        await tester.tap(termsBtn);
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('Gratuidad obligatoria'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('legal_tab_privacy')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Minimización de datos (RNF-09)'), findsOneWidget);
+        await tester.tap(find.byTooltip('Cerrar'));
+        await tester.pumpAndSettle();
+
+        // 3. Logged-out Profile also allows opening LegalDocumentsSheet
+        store.setActiveUser(null);
+        await tester.pumpAndSettle();
+        expect(find.text('No has iniciado sesión'), findsOneWidget);
+        final loggedOutPrivacyBtn =
+            find.byKey(const Key('open_privacy_notice_button'));
+        await tester.ensureVisible(loggedOutPrivacyBtn);
+        await tester.tap(loggedOutPrivacyBtn);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Minimización de datos (RNF-09)'), findsOneWidget);
+        await tester.tap(find.byTooltip('Cerrar'));
+        await tester.pumpAndSettle();
+
+        // 4. RegisterScreen Step 3 exposes both legal documents
+        router.go('/register');
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('register_username_field')),
+          'carlos_legal',
+        );
+        await tester.enterText(
+          find.byKey(const Key('register_email_field')),
+          'carlos.legal@buap.mx',
+        );
+        await tester.enterText(
+          find.byKey(const Key('register_password_field')),
+          'Donar2026',
+        );
+        await tester.ensureVisible(find.text('Continuar'));
+        await tester.tap(find.text('Continuar'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('register_legal_name_field')),
+          'Carlos Mendoza',
+        );
+        await tester.enterText(
+          find.byKey(const Key('register_phone_field')),
+          '2221112233',
+        );
+        await tester.enterText(
+          find.byKey(const Key('register_location_field')),
+          'Col. Centro, CP 72000',
+        );
+        await tester.ensureVisible(find.text('Continuar'));
+        await tester.tap(find.text('Continuar'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Incluye los Términos y Condiciones de Uso de DonaPlus.'),
+          findsOneWidget,
+        );
+        final regTermsBtn = find.byKey(const Key('register_open_terms_button'));
+        await tester.ensureVisible(regTermsBtn);
+        await tester.tap(regTermsBtn);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Gratuidad obligatoria'), findsOneWidget);
+      },
+    );
   });
 }
