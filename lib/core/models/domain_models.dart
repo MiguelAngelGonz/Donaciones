@@ -9,6 +9,17 @@ enum EstadoPublicacion { activa, reservada, cerrada, retirada }
 /// Physical condition options for donated items (RF-06, CU-14).
 enum CondicionArticulo { nuevo, comoNuevo, usado }
 
+enum PresentacionAlimento {
+  latas('Latas'),
+  botellas('Botellas'),
+  sobres('Sobres'),
+  otra('Otra presentación');
+
+  const PresentacionAlimento(this.etiqueta);
+
+  final String etiqueta;
+}
+
 /// Publication discriminator between Need and Item.
 enum TipoPublicacion { necesidad, articulo }
 
@@ -257,6 +268,8 @@ class TokenRestablecimientoMock {
 
 /// Donation publication category (CU-13, CU-48 to CU-51, RNF-14).
 class CategoriaMock {
+  static const alimentacionId = 'cat-alimentacion';
+
   final String id;
   final String nombre;
   final String iconoClave;

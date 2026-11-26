@@ -742,6 +742,9 @@ class _DonationTrackingScreenState
   }) {
     final theme = Theme.of(context);
     final highContrast = theme.colorScheme.outline == Colors.black;
+    final phone = activeUser.telefono;
+    final suffix = phone.length > 4 ? phone.substring(phone.length - 4) : '';
+    final maskedPhone = suffix.padLeft(phone.length, '*');
 
     return Card(
       child: Padding(
@@ -790,7 +793,7 @@ class _DonationTrackingScreenState
                       onChanged: (value) => _togglePhoneSharing(donation, value),
                       title: const Text('Compartir mi teléfono'),
                       subtitle: Text(
-                        'Tu número (${activeUser.telefono}) solo se muestra si activas esta opción.',
+                        'Tu número ($maskedPhone) se comparte completo al activar esta opción.',
                       ),
                     ),
                     const Divider(height: 1),

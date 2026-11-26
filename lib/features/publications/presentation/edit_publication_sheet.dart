@@ -214,7 +214,7 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
           categoriaId: _categoryId!,
           fotografias: _photos,
           cantidad: quantity,
-          condicion: _condition!,
+          condicion: _condition,
           ubicacionEtiqueta: _locationController.text,
         ),
       ),
@@ -377,7 +377,7 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
                   }),
                   errorText: _urgenciaError,
                 ),
-              ] else ...[
+              ] else if (_categoryId != CategoriaMock.alimentacionId) ...[
                 ItemConditionSelector(
                   selectedCondition: _condition,
                   onSelected: (value) => setState(() {

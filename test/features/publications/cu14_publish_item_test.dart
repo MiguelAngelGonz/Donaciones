@@ -35,6 +35,109 @@ void main() {
 
   group('CU-14 & CU-13: Publicar Artículo', () {
     testWidgets(
+      'Alimentación cambia el cuestionario y guarda la presentación',
+      (tester) async {
+        final (store, container) = await pumpAppAtCreateItem(tester);
+        final initialCount = store.publications.length;
+        final category = find.byKey(const Key('item_category_dropdown'));
+        final title = find.byKey(const Key('item_title_field'));
+        final description = find.byKey(const Key('item_description_field'));
+        final package = find.byKey(const Key('item_food_package_field'));
+        final expiration = find.byKey(const Key('item_food_expiration_field'));
+        final condition = find.byKey(const Key('item_condition_nuevo'));
+        final quantity = find.byKey(const Key('item_quantity_field'));
+        final submit = find.byKey(const Key('item_submit_button'));
+
+        Future<void> tapVisible(Finder finder) async {
+          await tester.ensureVisible(finder);
+          await tester.pumpAndSettle();
+          await tester.tap(finder);
+          await tester.pumpAndSettle();
+        }
+
+        expect(
+          tester.getTopLeft(category).dy,
+          greaterThan(tester.getTopLeft(title).dy),
+        );
+        expect(
+          tester.getTopLeft(category).dy,
+          lessThan(tester.getTopLeft(description).dy),
+        );
+        expect(condition, findsOneWidget);
+        expect(expiration, findsNothing);
+        await tapVisible(find.byKey(const Key('item_add_photo_button')));
+        await tester.enterText(title, 'Atún en agua');
+
+        await tapVisible(category);
+        await tapVisible(find.text('Alimentación').last);
+        expect(package, findsOneWidget);
+        expect(expiration, findsOneWidget);
+        expect(condition, findsNothing);
+        expect(find.text('Número de envases *'), findsOneWidget);
+        await tester.enterText(description, 'Envases cerrados');
+
+        await tapVisible(submit);
+        expect(
+          find.text('Selecciona la presentación del alimento.'),
+          findsOneWidget,
+        );
+        expect(store.publications.length, initialCount);
+
+        await tapVisible(package);
+        expect(find.text('Botellas'), findsOneWidget);
+        expect(find.text('Sobres'), findsOneWidget);
+        await tapVisible(find.text('Latas').last);
+        await tester.enterText(
+          find.byKey(const Key('item_food_package_content_field')),
+          '140 g',
+        );
+        await tester.enterText(quantity, '6');
+
+        await tester.enterText(expiration, '31/02/2028');
+        await tapVisible(submit);
+        expect(
+          find.text('Ingresa una fecha válida con el formato DD/MM/AAAA.'),
+          findsOneWidget,
+        );
+        expect(store.publications.length, initialCount);
+        await tester.enterText(expiration, '29/02/2028');
+
+        await tapVisible(category);
+        await tapVisible(find.text('Ropa').last);
+        expect(package, findsNothing);
+        expect(expiration, findsNothing);
+        expect(condition, findsOneWidget);
+        await tapVisible(category);
+        await tapVisible(find.text('Alimentación').last);
+        expect(find.text('Latas'), findsOneWidget);
+
+        await tapVisible(submit);
+        expect(store.publications.length, initialCount + 1);
+        final created = store.publications.last;
+        expect(created.titulo, 'Atún en agua');
+        expect(created.cantidad, 6);
+        expect(created.condicion, isNull);
+        expect(created.caracteristicas, {
+          'Presentación': 'Latas',
+          'Contenido por envase': '140 g',
+          'Fecha de caducidad': '29/02/2028',
+        });
+        expect(package, findsNothing);
+        expect(condition, findsOneWidget);
+
+        container.read(appRouterProvider).go('/publications/${created.id}');
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Presentación: Latas'), findsOneWidget);
+        expect(find.textContaining('Contenido por envase: 140 g'), findsOneWidget);
+        expect(
+          find.textContaining('Fecha de caducidad: 29/02/2028'),
+          findsOneWidget,
+        );
+        expect(find.text('Estado físico'), findsNothing);
+      },
+    );
+
+    testWidgets(
       'TC-CU14-01: flujo principal completo crea Artículo ACTIVA con 2 fotos y aparece en el listado',
       (tester) async {
         final (store, container) = await pumpAppAtCreateItem(tester);

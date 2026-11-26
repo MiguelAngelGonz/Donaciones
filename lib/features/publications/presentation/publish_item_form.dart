@@ -1,4 +1,5 @@
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
+import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
 import 'package:donaciones/features/publications/presentation/publish_item_controller.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,8 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
+  final _packageContentController = TextEditingController();
+  final _expirationDateController = TextEditingController();
   final _locationController = TextEditingController();
 
   String? _lastUserId;
@@ -38,6 +41,8 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
     _titleController.dispose();
     _descriptionController.dispose();
     _quantityController.dispose();
+    _packageContentController.dispose();
+    _expirationDateController.dispose();
     _locationController.dispose();
     super.dispose();
   }
@@ -48,6 +53,8 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
       titulo: _titleController.text,
       descripcion: _descriptionController.text,
       cantidadText: _quantityController.text,
+      contenidoPorEnvase: _packageContentController.text,
+      fechaCaducidad: _expirationDateController.text,
       ubicacion: _locationController.text,
     );
     if (created == null || !mounted) return;
@@ -58,6 +65,8 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
     _titleController.clear();
     _descriptionController.clear();
     _quantityController.text = '1';
+    _packageContentController.clear();
+    _expirationDateController.clear();
     _locationController.text = defaultLocation;
     _lastDefaultLocation = defaultLocation;
 
@@ -131,6 +140,58 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
               ),
             ),
             const SizedBox(height: 12),
+            ActiveCategoryDropdown(
+              fieldKey: const Key('item_category_dropdown'),
+              categories: activeCategories,
+              selectedCategoryId: state.categoriaId,
+              onChanged: controller.setCategoriaId,
+              errorText: state.categoriaError,
+            ),
+            if (state.esAlimento) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<PresentacionAlimento>(
+                key: const Key('item_food_package_field'),
+                initialValue: state.presentacionAlimento,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Presentación del alimento *',
+                  prefixIcon: const Icon(Icons.inventory_2_outlined),
+                  errorText: state.presentacionError,
+                ),
+                items: [
+                  for (final presentacion in PresentacionAlimento.values)
+                    DropdownMenuItem(
+                      value: presentacion,
+                      child: Text(presentacion.etiqueta),
+                    ),
+                ],
+                onChanged: controller.setPresentacionAlimento,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('item_food_package_content_field'),
+                controller: _packageContentController,
+                decoration: const InputDecoration(
+                  labelText: 'Contenido por envase (opcional)',
+                  hintText: 'Ej. 400 g o 500 ml',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('item_food_expiration_field'),
+                controller: _expirationDateController,
+                keyboardType: TextInputType.datetime,
+                onChanged: (_) => controller.clearCaducidadError(),
+                decoration: InputDecoration(
+                  labelText: 'Fecha de caducidad (opcional)',
+                  helperText: 'Formato DD/MM/AAAA.',
+                  prefixIcon: const Icon(Icons.event_outlined),
+                  errorText: state.caducidadError,
+                  errorMaxLines: 2,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
             TextFormField(
               key: const Key('item_description_field'),
               controller: _descriptionController,
@@ -139,18 +200,12 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
               maxLines: 4,
               decoration: InputDecoration(
                 labelText: 'Descripción *',
-                hintText: 'Describe estado, medidas o detalles importantes...',
+                hintText: state.esAlimento
+                    ? 'Ej. Atún en agua, envases cerrados'
+                    : 'Describe estado, medidas o detalles importantes...',
                 prefixIcon: const Icon(Icons.description_outlined),
                 errorText: state.descripcionError,
               ),
-            ),
-            const SizedBox(height: 12),
-            ActiveCategoryDropdown(
-              fieldKey: const Key('item_category_dropdown'),
-              categories: activeCategories,
-              selectedCategoryId: state.categoriaId,
-              onChanged: controller.setCategoriaId,
-              errorText: state.categoriaError,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -160,20 +215,24 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               onChanged: controller.setCantidadFromText,
               decoration: InputDecoration(
-                labelText: 'Cantidad disponible *',
+                labelText: state.esAlimento
+                    ? 'Número de envases *'
+                    : 'Cantidad disponible *',
                 prefixIcon: const Icon(Icons.numbers_outlined),
                 errorText: state.cantidadError,
               ),
             ),
-            const SizedBox(height: 14),
-            ItemConditionSelector(
-              selectedCondition: state.condicion,
-              onSelected: controller.setCondicion,
-              errorText: state.condicionError,
-              nuevoKey: const Key('item_condition_nuevo'),
-              comoNuevoKey: const Key('item_condition_comoNuevo'),
-              usadoKey: const Key('item_condition_usado'),
-            ),
+            if (!state.esAlimento) ...[
+              const SizedBox(height: 14),
+              ItemConditionSelector(
+                selectedCondition: state.condicion,
+                onSelected: controller.setCondicion,
+                errorText: state.condicionError,
+                nuevoKey: const Key('item_condition_nuevo'),
+                comoNuevoKey: const Key('item_condition_comoNuevo'),
+                usadoKey: const Key('item_condition_usado'),
+              ),
+            ],
             const SizedBox(height: 14),
             TextFormField(
               key: const Key('item_location_field'),

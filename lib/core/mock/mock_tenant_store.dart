@@ -63,7 +63,7 @@ class MockTenantStore extends ChangeNotifier {
 
   String? _activeUserId;
   bool _simulateNetworkError = false;
-  bool _isDeviceLocationAuthorized = false;
+  UbicacionMock? _deviceLocation;
   late DateTime _currentTime;
 
   int _userSeq = 0;
@@ -129,10 +129,10 @@ class MockTenantStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get isDeviceLocationAuthorized => _isDeviceLocationAuthorized;
+  bool get isDeviceLocationAuthorized => _deviceLocation != null;
 
-  void setDeviceLocationAuthorized(bool authorized) {
-    _isDeviceLocationAuthorized = authorized;
+  void setDeviceLocationAuthorized(bool authorized, {UbicacionMock? location}) {
+    _deviceLocation = authorized ? location ?? _simulatedDeviceLocation : null;
     notifyListeners();
   }
 
@@ -189,7 +189,7 @@ class MockTenantStore extends ChangeNotifier {
     _currentTime = _seedReferenceTime;
     _activeUserId = 'usr-alondra';
     _simulateNetworkError = false;
-    _isDeviceLocationAuthorized = false;
+    _deviceLocation = null;
 
     _userSeq = 3;
     _catSeq = 6;
@@ -314,7 +314,7 @@ class MockTenantStore extends ChangeNotifier {
         activa: true,
       ),
       CategoriaMock(
-        id: 'cat-alimentacion',
+        id: CategoriaMock.alimentacionId,
         nombre: 'Alimentación',
         iconoClave: 'restaurant',
         activa: true,
@@ -889,8 +889,9 @@ class MockTenantStore extends ChangeNotifier {
   }
 
   double getDistanceForPublication(PublicacionMock publication) {
-    if (_isDeviceLocationAuthorized) {
-      return _simulatedDeviceLocation.distanceKmTo(publication.ubicacion);
+    final deviceLocation = _deviceLocation;
+    if (deviceLocation != null) {
+      return deviceLocation.distanceKmTo(publication.ubicacion);
     }
     final user = activeUser;
     if (user == null || user.id == 'usr-alondra') {
@@ -954,6 +955,7 @@ class MockTenantStore extends ChangeNotifier {
       fechaPublicacion: _currentTime,
       cantidad: input.cantidad,
       condicion: input.condicion,
+      caracteristicas: Map.unmodifiable(input.caracteristicas ?? const {}),
       fotografias: List.unmodifiable(input.fotografias),
     );
 
@@ -1021,6 +1023,9 @@ class MockTenantStore extends ChangeNotifier {
     final existing = _publications[idx];
 
     _validateItemInput(input);
+    final saleDeAlimentacion =
+        existing.categoriaId == CategoriaMock.alimentacionId &&
+        input.categoriaId != existing.categoriaId;
     final updated = existing.copyWith(
       categoriaId: input.categoriaId,
       titulo: input.titulo.trim(),
@@ -1028,6 +1033,11 @@ class MockTenantStore extends ChangeNotifier {
       ubicacion: _buildLocation(input.ubicacionEtiqueta.trim()),
       cantidad: input.cantidad,
       condicion: input.condicion,
+      clearCondicion: input.condicion == null,
+      caracteristicas: Map.unmodifiable(
+        input.caracteristicas ??
+            (saleDeAlimentacion ? const {} : existing.caracteristicas),
+      ),
       fotografias: List.unmodifiable(input.fotografias),
     );
 
@@ -2309,6 +2319,12 @@ class MockTenantStore extends ChangeNotifier {
     if (category == null || !category.activa) {
       throw const ValidationException(
         'Debes seleccionar una categoría activa.',
+      );
+    }
+    if (category.id != CategoriaMock.alimentacionId &&
+        input.condicion == null) {
+      throw const ValidationException(
+        'Selecciona el estado físico del artículo.',
       );
     }
   }

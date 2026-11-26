@@ -1,6 +1,14 @@
+import 'dart:io';
+
 import 'package:donaciones/app/theme.dart';
 import 'package:donaciones/core/models/domain_models.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+
+bool get usesAndroidDeviceAccess => !kIsWeb && Platform.isAndroid;
 
 /// Maps a [CategoriaMock.iconoClave] string to a Material icon.
 IconData iconForCategoryKey(String iconKey) {
@@ -275,7 +283,7 @@ class IntermediaryBadge extends StatelessWidget {
   }
 }
 
-/// Stylized visual placeholder card for mock item photographs (`sample://...`).
+/// Shows local item photographs and placeholders for the sample catalog.
 class PublicationPhotoPlaceholder extends StatelessWidget {
   final String photoPath;
   final double width;
@@ -297,6 +305,7 @@ class PublicationPhotoPlaceholder extends StatelessWidget {
     final theme = Theme.of(context);
     final highContrast = theme.colorScheme.outline == Colors.black;
     final isDevice = photoPath.startsWith('device://');
+    final isLocalFile = !kIsWeb && photoPath.startsWith('file://');
 
     return Container(
       width: width,
@@ -314,33 +323,51 @@ class PublicationPhotoPlaceholder extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isDevice
-                      ? Icons.photo_library_outlined
-                      : Icons.image_outlined,
-                  size: 28,
-                  color: highContrast ? Colors.black : DonaPlusColors.primary,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  labelForMockPhoto(photoPath),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: highContrast
-                        ? Colors.black
-                        : DonaPlusColors.primary,
+          if (isLocalFile)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.file(
+                  File.fromUri(Uri.parse(photoPath)),
+                  fit: BoxFit.cover,
+                  semanticLabel: 'Fotografía del artículo',
+                  errorBuilder: (context, error, stackTrace) => const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      semanticLabel: 'Fotografía no disponible',
+                    ),
                   ),
                 ),
-              ],
+              ),
+            )
+          else
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isDevice
+                        ? Icons.photo_library_outlined
+                        : Icons.image_outlined,
+                    size: 28,
+                    color: highContrast ? Colors.black : DonaPlusColors.primary,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    labelForMockPhoto(photoPath),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: highContrast
+                          ? Colors.black
+                          : DonaPlusColors.primary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           if (isPrimary)
             Positioned(
               left: 0,
@@ -638,7 +665,7 @@ class ItemConditionSelector extends StatelessWidget {
 }
 
 /// Shared 1-to-5 photographs field with sample & gallery picker (CU-14, CU-16).
-class PublicationPhotosField extends StatelessWidget {
+class PublicationPhotosField extends StatefulWidget {
   final List<String> photos;
   final List<String> samplePhotos;
   final VoidCallback onAddQuickPhoto;
@@ -662,6 +689,70 @@ class PublicationPhotosField extends StatelessWidget {
     this.enabled = true,
   });
 
+  @override
+  State<PublicationPhotosField> createState() => _PublicationPhotosFieldState();
+}
+
+class _PublicationPhotosFieldState extends State<PublicationPhotosField> {
+  bool _pickingPhoto = false;
+
+  Future<void> _pickAndroidPhoto() async {
+    if (_pickingPhoto) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Tomar foto con la cámara'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Seleccionar desde galería del dispositivo'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted) return;
+      final picker = ImagePickerAndroid()..useAndroidPhotoPicker = true;
+      final photo = await picker.getImageFromSource(
+        source: source,
+        options: const ImagePickerOptions(
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 85,
+          requestFullMetadata: false,
+        ),
+      );
+      if (photo != null &&
+          mounted &&
+          widget.enabled &&
+          widget.photos.length < 5) {
+        widget.onAddSpecificPhoto(File(photo.path).uri.toString());
+      }
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'camera_access_denied' => 'Permite el acceso a la cámara en los ajustes de Android o elige una foto de la galería.',
+        'no_available_camera' => 'No hay una cámara disponible.',
+        _ => 'No se pudo agregar la foto. Inténtalo de nuevo.',
+      };
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
+  }
+
   Future<void> _showPhotoSourcePicker(BuildContext context) {
     final theme = Theme.of(context);
     return showModalBottomSheet<void>(
@@ -676,7 +767,7 @@ class PublicationPhotosField extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Agregar fotografía (${photos.length}/5)',
+                  'Agregar fotografía (${widget.photos.length}/5)',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -689,7 +780,7 @@ class PublicationPhotosField extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                for (final sample in samplePhotos)
+                for (final sample in widget.samplePhotos)
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.image_outlined),
@@ -697,17 +788,21 @@ class PublicationPhotosField extends StatelessWidget {
                     subtitle: Text(sample),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      onAddSpecificPhoto(sample);
+                      widget.onAddSpecificPhoto(sample);
                     },
                   ),
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Seleccionar desde galería del dispositivo'),
+                  title: const Text(
+                    'Seleccionar desde galería del dispositivo',
+                  ),
                   subtitle: const Text('Simula la selección de una foto local'),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    onAddSpecificPhoto('device://galeria_${photos.length + 1}.jpg');
+                    widget.onAddSpecificPhoto(
+                      'device://galeria_${widget.photos.length + 1}.jpg',
+                    );
                   },
                 ),
               ],
@@ -721,7 +816,10 @@ class PublicationPhotosField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final photos = widget.photos;
+    final errorText = widget.errorText;
     final atLimit = photos.length >= 5;
+    final enabled = widget.enabled && !_pickingPhoto;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,7 +850,7 @@ class PublicationPhotosField extends StatelessWidget {
                 PublicationPhotoPlaceholder(
                   photoPath: photos[i],
                   isPrimary: i == 0,
-                  onRemove: enabled ? () => onRemoveAt(i) : null,
+                  onRemove: enabled ? () => widget.onRemoveAt(i) : null,
                 ),
             ],
           ),
@@ -763,19 +861,24 @@ class PublicationPhotosField extends StatelessWidget {
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              key: addButtonKey,
-              onPressed: (!enabled || atLimit) ? null : onAddQuickPhoto,
+              key: widget.addButtonKey,
+              onPressed: (!enabled || atLimit)
+                  ? null
+                  : usesAndroidDeviceAccess
+                  ? _pickAndroidPhoto
+                  : widget.onAddQuickPhoto,
               icon: const Icon(Icons.add_a_photo_outlined),
               label: const Text('Agregar foto'),
             ),
-            TextButton.icon(
-              key: sourceButtonKey,
-              onPressed: (!enabled || atLimit)
-                  ? null
-                  : () => _showPhotoSourcePicker(context),
-              icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('Elegir muestra o galería'),
-            ),
+            if (!usesAndroidDeviceAccess)
+              TextButton.icon(
+                key: widget.sourceButtonKey,
+                onPressed: (!enabled || atLimit)
+                    ? null
+                    : () => _showPhotoSourcePicker(context),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Elegir muestra o galería'),
+              ),
           ],
         ),
         if (atLimit) ...[
@@ -791,7 +894,7 @@ class PublicationPhotosField extends StatelessWidget {
         if (errorText != null) ...[
           const SizedBox(height: 6),
           Text(
-            errorText!,
+            errorText,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
               fontWeight: FontWeight.w600,
