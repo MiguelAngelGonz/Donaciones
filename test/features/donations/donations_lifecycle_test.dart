@@ -179,6 +179,8 @@ void main() {
           find.text('Teléfono oculto por privacidad (RNF-09)'),
           findsOneWidget,
         );
+        expect(find.textContaining('******6543'), findsOneWidget);
+        expect(find.textContaining('2229876543'), findsNothing);
 
         // Maria sends chat message and toggles phone sharing on
         await tester.enterText(
@@ -196,12 +198,15 @@ void main() {
           store.findDonationById(donation.id)?.telefonoDonanteCompartido,
           isTrue,
         );
+        expect(find.textContaining('******6543'), findsOneWidget);
+        expect(find.textContaining('2229876543'), findsNothing);
 
         // Switch to recipient usr-alondra -> sees Maria's phone and replies
         store.setActiveUser('usr-alondra');
         await tester.pumpAndSettle();
 
         expect(find.textContaining('2229876543'), findsOneWidget);
+        expect(find.textContaining('******4457'), findsOneWidget);
         await tester.enterText(
           find.byKey(const Key('chat_message_field')),
           'En el Parque del Carmen a las 5pm.',

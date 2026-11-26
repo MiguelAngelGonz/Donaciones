@@ -6,16 +6,22 @@ import 'package:donaciones/features/publications/presentation/feed_filter_contro
 import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator_android/geolocator_android.dart';
 import 'package:go_router/go_router.dart';
 
 /// Main community feed with category, type, proximity, and urgency filters (CU-19..22).
-class FeedScreen extends ConsumerWidget {
+class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
 
-  Future<void> _handleDeviceLocationToggle(
-    BuildContext context,
-    MockTenantStore store,
-  ) async {
+  @override
+  ConsumerState<FeedScreen> createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends ConsumerState<FeedScreen> {
+  bool _requestingLocation = false;
+
+  Future<void> _handleDeviceLocationToggle(MockTenantStore store) async {
+    if (_requestingLocation) return;
     if (store.isDeviceLocationAuthorized) {
       store.setDeviceLocationAuthorized(false);
       return;
@@ -41,21 +47,82 @@ class FeedScreen extends ConsumerWidget {
       ),
     );
 
-    if (allowed == null) return;
-    store.setDeviceLocationAuthorized(allowed);
-    if (!allowed && context.mounted) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Permiso denegado. Se utilizará la ubicación aproximada registrada en tu perfil.',
+    if (!mounted || allowed == null || _requestingLocation) return;
+    if (!allowed) {
+      _showLocationMessage(
+        'Permiso denegado. Se utilizará la ubicación aproximada registrada en tu perfil.',
+      );
+      return;
+    }
+    if (!usesAndroidDeviceAccess) {
+      store.setDeviceLocationAuthorized(true);
+      return;
+    }
+
+    setState(() => _requestingLocation = true);
+    try {
+      final locator = GeolocatorAndroid();
+      var permission = await locator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await locator.requestPermission();
+      }
+      if (!mounted) return;
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationMessage(
+          'Puedes habilitar el permiso de ubicación de DonaPlus en los ajustes de Android.',
+          action: SnackBarAction(
+            label: 'Ajustes',
+            onPressed: () => locator.openAppSettings(),
           ),
+        );
+        return;
+      }
+      if (permission != LocationPermission.whileInUse &&
+          permission != LocationPermission.always) {
+        _showLocationMessage(
+          'Permiso denegado. Se utilizará la ubicación aproximada registrada en tu perfil.',
+        );
+        return;
+      }
+      final position = await locator.getCurrentPosition(
+        locationSettings: AndroidSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: const Duration(seconds: 15),
         ),
       );
+      if (!mounted) return;
+      store.setDeviceLocationAuthorized(
+        true,
+        location: UbicacionMock(
+          etiqueta: 'Ubicación del dispositivo',
+          latitud: position.latitude,
+          longitud: position.longitude,
+        ),
+      );
+    } on LocationServiceDisabledException {
+      if (mounted) {
+        _showLocationMessage(
+          'Activa la ubicación en Android para calcular las distancias con tu dispositivo.',
+        );
+      }
+    } on Exception {
+      if (mounted) {
+        _showLocationMessage(
+          'No se pudo obtener la ubicación. Se utilizará la ubicación aproximada de tu perfil.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _requestingLocation = false);
     }
   }
 
+  void _showLocationMessage(String message, {SnackBarAction? action}) {
+    ScaffoldMessenger.maybeOf(context)
+        ?.showSnackBar(SnackBar(content: Text(message), action: action));
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final store = ref.watch(mockTenantStoreProvider);
     final filterState = ref.watch(feedFilterControllerProvider);
     final filterController = ref.read(feedFilterControllerProvider.notifier);
@@ -186,8 +253,9 @@ class FeedScreen extends ConsumerWidget {
                       'Col. Centro, CP 72000',
                   maxDistanceKm: filterState.maxDistanceKm,
                   sortByDistance: filterState.sortByDistance,
-                  onToggleDeviceLocation: () =>
-                      _handleDeviceLocationToggle(context, store),
+                  onToggleDeviceLocation: _requestingLocation
+                      ? null
+                      : () => _handleDeviceLocationToggle(store),
                   onSelectMaxDistance: filterController.selectMaxDistance,
                   onToggleSortDistance: filterController.toggleSortByDistance,
                 ),
@@ -330,7 +398,7 @@ class _ProximityControlsCard extends StatelessWidget {
   final String registeredLocationLabel;
   final double? maxDistanceKm;
   final bool sortByDistance;
-  final VoidCallback onToggleDeviceLocation;
+  final VoidCallback? onToggleDeviceLocation;
   final ValueChanged<double?> onSelectMaxDistance;
   final VoidCallback onToggleSortDistance;
 

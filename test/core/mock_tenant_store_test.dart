@@ -394,6 +394,15 @@ void main() {
 
       // Device location authorization toggle (CU-21)
       expect(store.isDeviceLocationAuthorized, isFalse);
+      final nearbyPublication = within2Km.first;
+      final profileDistance = store.getDistanceForPublication(nearbyPublication);
+      store.setDeviceLocationAuthorized(
+        true,
+        location: nearbyPublication.ubicacion,
+      );
+      expect(store.getDistanceForPublication(nearbyPublication), 0);
+      store.setDeviceLocationAuthorized(false);
+      expect(store.getDistanceForPublication(nearbyPublication), profileDistance);
       store.setDeviceLocationAuthorized(true);
       expect(store.isDeviceLocationAuthorized, isTrue);
 

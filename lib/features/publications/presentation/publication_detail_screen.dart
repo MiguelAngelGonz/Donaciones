@@ -442,15 +442,16 @@ class _DetailBody extends StatelessWidget {
                                 : 'Cantidad disponible',
                             value: '${publication.cantidad}',
                           ),
-                          _DetailSpecChip(
-                            icon: Icons.verified_outlined,
-                            label: isNeed
-                                ? 'Condición aceptable'
-                                : 'Estado físico',
-                            value: publication.condicion == null
-                                ? 'Cualquiera'
-                                : labelForCondicion(publication.condicion!),
-                          ),
+                          if (isNeed || publication.condicion != null)
+                            _DetailSpecChip(
+                              icon: Icons.verified_outlined,
+                              label: isNeed
+                                  ? 'Condición aceptable'
+                                  : 'Estado físico',
+                              value: publication.condicion == null
+                                  ? 'Cualquiera'
+                                  : labelForCondicion(publication.condicion!),
+                            ),
                           _DetailSpecChip(
                             icon: Icons.location_on_outlined,
                             label: store.isDeviceLocationAuthorized

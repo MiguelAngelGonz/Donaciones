@@ -15,6 +15,7 @@ class PublishItemState {
   final String? categoriaId;
   final int cantidad;
   final CondicionArticulo? condicion;
+  final PresentacionAlimento? presentacionAlimento;
   final String ubicacionEtiqueta;
   final String? photosError;
   final String? tituloError;
@@ -22,6 +23,8 @@ class PublishItemState {
   final String? categoriaError;
   final String? cantidadError;
   final String? condicionError;
+  final String? presentacionError;
+  final String? caducidadError;
   final String? ubicacionError;
   final String? submissionError;
   final bool isSubmitting;
@@ -34,6 +37,7 @@ class PublishItemState {
     this.categoriaId,
     this.cantidad = 1,
     this.condicion = CondicionArticulo.nuevo,
+    this.presentacionAlimento,
     this.ubicacionEtiqueta = '',
     this.photosError,
     this.tituloError,
@@ -41,11 +45,15 @@ class PublishItemState {
     this.categoriaError,
     this.cantidadError,
     this.condicionError,
+    this.presentacionError,
+    this.caducidadError,
     this.ubicacionError,
     this.submissionError,
     this.isSubmitting = false,
     this.publishedPublication,
   });
+
+  bool get esAlimento => categoriaId == CategoriaMock.alimentacionId;
 
   PublishItemState copyWith({
     List<String>? fotografias,
@@ -54,6 +62,7 @@ class PublishItemState {
     Object? categoriaId = _unset,
     int? cantidad,
     Object? condicion = _unset,
+    PresentacionAlimento? presentacionAlimento,
     String? ubicacionEtiqueta,
     Object? photosError = _unset,
     Object? tituloError = _unset,
@@ -61,6 +70,8 @@ class PublishItemState {
     Object? categoriaError = _unset,
     Object? cantidadError = _unset,
     Object? condicionError = _unset,
+    Object? presentacionError = _unset,
+    Object? caducidadError = _unset,
     Object? ubicacionError = _unset,
     Object? submissionError = _unset,
     bool? isSubmitting,
@@ -77,6 +88,7 @@ class PublishItemState {
       condicion: identical(condicion, _unset)
           ? this.condicion
           : condicion as CondicionArticulo?,
+      presentacionAlimento: presentacionAlimento ?? this.presentacionAlimento,
       ubicacionEtiqueta: ubicacionEtiqueta ?? this.ubicacionEtiqueta,
       photosError: identical(photosError, _unset)
           ? this.photosError
@@ -96,6 +108,12 @@ class PublishItemState {
       condicionError: identical(condicionError, _unset)
           ? this.condicionError
           : condicionError as String?,
+      presentacionError: identical(presentacionError, _unset)
+          ? this.presentacionError
+          : presentacionError as String?,
+      caducidadError: identical(caducidadError, _unset)
+          ? this.caducidadError
+          : caducidadError as String?,
       ubicacionError: identical(ubicacionError, _unset)
           ? this.ubicacionError
           : ubicacionError as String?,
@@ -194,6 +212,22 @@ class PublishItemController extends StateNotifier<PublishItemState> {
     state = state.copyWith(
       categoriaId: categoryId,
       categoriaError: null,
+      presentacionError: null,
+      caducidadError: null,
+      publishedPublication: null,
+    );
+  }
+
+  void clearCaducidadError() {
+    if (state.caducidadError != null) {
+      state = state.copyWith(caducidadError: null);
+    }
+  }
+
+  void setPresentacionAlimento(PresentacionAlimento? value) {
+    state = state.copyWith(
+      presentacionAlimento: value,
+      presentacionError: null,
       publishedPublication: null,
     );
   }
@@ -236,10 +270,22 @@ class PublishItemController extends StateNotifier<PublishItemState> {
     required String descripcion,
     required String cantidadText,
     required String ubicacion,
+    String contenidoPorEnvase = '',
+    String fechaCaducidad = '',
   }) async {
     if (state.isSubmitting) return null;
 
     final cantidad = int.tryParse(cantidadText.trim()) ?? 0;
+    final presentacion = state.esAlimento ? state.presentacionAlimento : null;
+    final presentacionError = state.esAlimento && presentacion == null
+        ? 'Selecciona la presentación del alimento.'
+        : null;
+    final condicion = state.esAlimento ? null : state.condicion;
+    final caducidad = state.esAlimento ? fechaCaducidad.trim() : '';
+    final caducidadError =
+        caducidad.isNotEmpty && !isValidExpirationDate(caducidad)
+        ? 'Ingresa una fecha válida con el formato DD/MM/AAAA.'
+        : null;
     final validation = validateItemFields(
       store: _store,
       fotografias: state.fotografias,
@@ -247,11 +293,13 @@ class PublishItemController extends StateNotifier<PublishItemState> {
       descripcion: descripcion,
       categoriaId: state.categoriaId,
       cantidad: cantidad,
-      condicion: state.condicion,
+      condicion: condicion,
       ubicacionEtiqueta: ubicacion,
     );
 
-    if (validation.hasErrors) {
+    if (validation.hasErrors ||
+        presentacionError != null ||
+        caducidadError != null) {
       state = state.copyWith(
         titulo: titulo,
         descripcion: descripcion,
@@ -263,6 +311,8 @@ class PublishItemController extends StateNotifier<PublishItemState> {
         categoriaError: validation.categoriaError,
         cantidadError: validation.cantidadError,
         condicionError: validation.condicionError,
+        presentacionError: presentacionError,
+        caducidadError: caducidadError,
         ubicacionError: validation.ubicacionError,
         submissionError: null,
         publishedPublication: null,
@@ -281,12 +331,15 @@ class PublishItemController extends StateNotifier<PublishItemState> {
       categoriaError: null,
       cantidadError: null,
       condicionError: null,
+      presentacionError: null,
+      caducidadError: null,
       ubicacionError: null,
       submissionError: null,
       isSubmitting: true,
       publishedPublication: null,
     );
 
+    final contenido = contenidoPorEnvase.trim();
     try {
       final created = await _store.createItemPublication(
         CreateItemInput(
@@ -295,8 +348,14 @@ class PublishItemController extends StateNotifier<PublishItemState> {
           categoriaId: state.categoriaId!,
           fotografias: state.fotografias,
           cantidad: cantidad,
-          condicion: state.condicion!,
+          condicion: condicion,
           ubicacionEtiqueta: ubicacion,
+          caracteristicas: {
+            if (presentacion != null) 'Presentación': presentacion.etiqueta,
+            if (presentacion != null && contenido.isNotEmpty)
+              'Contenido por envase': contenido,
+            if (caducidad.isNotEmpty) 'Fecha de caducidad': caducidad,
+          },
         ),
       );
       final defaultLocation =

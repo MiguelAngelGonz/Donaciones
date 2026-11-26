@@ -57,8 +57,9 @@ class CreateItemInput {
   final String categoriaId;
   final List<String> fotografias;
   final int cantidad;
-  final CondicionArticulo condicion;
+  final CondicionArticulo? condicion;
   final String ubicacionEtiqueta;
+  final Map<String, String>? caracteristicas;
 
   const CreateItemInput({
     required this.titulo,
@@ -68,5 +69,6 @@ class CreateItemInput {
     required this.cantidad,
     required this.condicion,
     required this.ubicacionEtiqueta,
+    this.caracteristicas,
   });
 }
