@@ -205,13 +205,23 @@ class ProfileAvatarCircle extends StatelessWidget {
     return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
   }
 
+  File? _tryResolveLocalFile() {
+    if (kIsWeb || fotoPerfil == null || !fotoPerfil!.startsWith('file://')) {
+      return null;
+    }
+    try {
+      return File.fromUri(Uri.parse(fotoPerfil!));
+    } on Object {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final option = _findAvatarOption();
     final hasCustomPhoto = fotoPerfil != null && fotoPerfil!.isNotEmpty;
-    final isLocalFile =
-        !kIsWeb && hasCustomPhoto && fotoPerfil!.startsWith('file://');
+    final localFile = _tryResolveLocalFile();
 
     return CircleAvatar(
       radius: radius,
@@ -221,10 +231,10 @@ class ProfileAvatarCircle extends StatelessWidget {
       foregroundColor: hasCustomPhoto
           ? DonaPlusColors.primary
           : theme.colorScheme.onPrimary,
-      child: isLocalFile
+      child: localFile != null
           ? ClipOval(
               child: Image.file(
-                File.fromUri(Uri.parse(fotoPerfil!)),
+                localFile,
                 width: radius * 2,
                 height: radius * 2,
                 fit: BoxFit.cover,

@@ -1,6 +1,7 @@
 import 'package:donaciones/app/router.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/dto_inputs.dart';
+import 'package:donaciones/core/widgets/legal_documents_sheet.dart';
 import 'package:donaciones/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -607,10 +608,17 @@ void main() {
         await tester.tap(find.byTooltip('Cerrar'));
         await tester.pumpAndSettle();
 
-        // 3. Logged-out Profile also allows opening LegalDocumentsSheet
+        // 3. Logged-out Profile also allows opening LegalDocumentsSheet (sibling Card, not nested)
         store.setActiveUser(null);
         await tester.pumpAndSettle();
         expect(find.text('No has iniciado sesión'), findsOneWidget);
+        expect(
+          find.ancestor(
+            of: find.byType(LegalAndPermissionsCard),
+            matching: find.byType(Card),
+          ),
+          findsNothing,
+        );
         final loggedOutPrivacyBtn =
             find.byKey(const Key('open_privacy_notice_button'));
         await tester.ensureVisible(loggedOutPrivacyBtn);
@@ -693,9 +701,16 @@ void main() {
           'device://avatar_galeria.jpg',
         );
 
-        // Fallback safety when fotoPerfil has a non-existent file:// URI
+        // Fallback safety when fotoPerfil has a non-existent or authority-bearing file:// URI
         await store.updateProfile(
           fotoPerfil: 'file:///non_existent_avatar_test.jpg',
+          telefono: '2225550199',
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        await store.updateProfile(
+          fotoPerfil: 'file://invalid_authority_host/avatar.jpg',
           telefono: '2225550199',
         );
         await tester.pumpAndSettle();

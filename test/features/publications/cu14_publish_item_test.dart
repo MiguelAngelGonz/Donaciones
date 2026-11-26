@@ -564,6 +564,48 @@ void main() {
         expect(switchedToClothes.categoriaId, 'cat-ropa');
         expect(switchedToClothes.condicion, CondicionArticulo.nuevo);
         expect(switchedToClothes.caracteristicas, isEmpty);
+
+        // Reabrir edición en Ropa y cambiar de vuelta a Alimentación -> limpia condicion, exige presentación y limpia _condicionError
+        await tester.ensureVisible(editBtn);
+        await tester.tap(editBtn);
+        await tester.pumpAndSettle();
+
+        // Deseleccionar condición no aplica, pero cambiar categoría a Alimentación y luego volver a Ropa limpia _condicionError
+        await tester.ensureVisible(catDropdown);
+        await tester.tap(catDropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Alimentación').last);
+        await tester.pumpAndSettle();
+
+        expect(packageField, findsOneWidget);
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Selecciona la presentación del alimento.'),
+          findsOneWidget,
+        );
+
+        await tester.ensureVisible(packageField);
+        await tester.pumpAndSettle();
+        await tester.tap(packageField);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Botellas').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(contentField, '500 ml');
+        await tester.enterText(expirationField, '10/05/2028');
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+
+        final switchedBackToFood = store.findPublicationById(createdFood.id)!;
+        expect(switchedBackToFood.categoriaId, CategoriaMock.alimentacionId);
+        expect(switchedBackToFood.condicion, isNull);
+        expect(switchedBackToFood.caracteristicas, {
+          'Presentación': 'Botellas',
+          'Contenido por envase': '500 ml',
+          'Fecha de caducidad': '10/05/2028',
+        });
       },
     );
   });

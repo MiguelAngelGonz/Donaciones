@@ -122,47 +122,53 @@ class _LoggedOutProfileView extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.person_outline,
-                    size: 52,
-                    color: theme.colorScheme.secondary,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 52,
+                        color: theme.colorScheme.secondary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No has iniciado sesión',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Inicia sesión o crea una cuenta para consultar tu perfil, tu Perfil de Confianza y tus reseñas.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: onLogin,
+                        child: const Text('Iniciar sesión'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: onRegister,
+                        child: const Text('Registrarse'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No has iniciado sesión',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Inicia sesión o crea una cuenta para consultar tu perfil, tu Perfil de Confianza y tus reseñas.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: onLogin,
-                    child: const Text('Iniciar sesión'),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: onRegister,
-                    child: const Text('Registrarse'),
-                  ),
-                  const SizedBox(height: 16),
-                  const LegalAndPermissionsCard(),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 14),
+              const LegalAndPermissionsCard(),
+            ],
           ),
         ),
       ),
