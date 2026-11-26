@@ -37,11 +37,14 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _quantityController;
   late final TextEditingController _detailsController;
+  late final TextEditingController _packageContentController;
+  late final TextEditingController _expirationDateController;
   late final TextEditingController _locationController;
   late final TextEditingController _aliasController;
 
   late String? _categoryId;
   late CondicionArticulo? _condition;
+  PresentacionAlimento? _presentacionAlimento;
   late Urgencia? _urgency;
   late List<String> _photos;
   late bool _managedByIntermediary;
@@ -53,12 +56,16 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
   String? _categoriaError;
   String? _cantidadError;
   String? _condicionError;
+  String? _presentacionError;
+  String? _caducidadError;
   String? _urgenciaError;
   String? _ubicacionError;
   String? _aliasError;
   String? _submitError;
 
   bool get _isNeed => widget.publication.tipo == TipoPublicacion.necesidad;
+  bool get _isFoodItem =>
+      !_isNeed && _categoryId == CategoriaMock.alimentacionId;
 
   @override
   void initState() {
@@ -71,6 +78,12 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
       text: pub.caracteristicas['Detalles'] ??
           pub.caracteristicas.values.join(', '),
     );
+    _packageContentController = TextEditingController(
+      text: pub.caracteristicas['Contenido por envase'] ?? '',
+    );
+    _expirationDateController = TextEditingController(
+      text: pub.caracteristicas['Fecha de caducidad'] ?? '',
+    );
     _locationController = TextEditingController(text: pub.ubicacion.etiqueta);
     _aliasController = TextEditingController(
       text: pub.aliasBeneficiario ?? '',
@@ -78,6 +91,12 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
 
     _categoryId = pub.categoriaId;
     _condition = pub.condicion;
+    final savedPresentacion = pub.caracteristicas['Presentación'];
+    _presentacionAlimento = savedPresentacion == null
+        ? null
+        : PresentacionAlimento.values
+              .where((p) => p.etiqueta == savedPresentacion)
+              .firstOrNull;
     _urgency = pub.urgencia;
     _photos = List<String>.from(pub.fotografias);
     _managedByIntermediary = pub.gestionadaPorIntermediario;
@@ -89,6 +108,8 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
     _descriptionController.dispose();
     _quantityController.dispose();
     _detailsController.dispose();
+    _packageContentController.dispose();
+    _expirationDateController.dispose();
     _locationController.dispose();
     _aliasController.dispose();
     super.dispose();
@@ -181,6 +202,17 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
       return;
     }
 
+    final effectiveCondition = _isFoodItem ? null : _condition;
+    final presentacion = _isFoodItem ? _presentacionAlimento : null;
+    final presentacionError = _isFoodItem && presentacion == null
+        ? 'Selecciona la presentación del alimento.'
+        : null;
+    final caducidad = _isFoodItem ? _expirationDateController.text.trim() : '';
+    final caducidadError =
+        caducidad.isNotEmpty && !isValidExpirationDate(caducidad)
+        ? 'Ingresa una fecha válida con el formato DD/MM/AAAA.'
+        : null;
+
     final itemErrors = validateItemFields(
       store: store,
       fotografias: _photos,
@@ -188,10 +220,12 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
       descripcion: _descriptionController.text,
       categoriaId: _categoryId,
       cantidad: quantity,
-      condicion: _condition,
+      condicion: effectiveCondition,
       ubicacionEtiqueta: _locationController.text,
     );
-    if (itemErrors.hasErrors) {
+    if (itemErrors.hasErrors ||
+        presentacionError != null ||
+        caducidadError != null) {
       setState(() {
         _photosError = itemErrors.photosError;
         _tituloError = itemErrors.tituloError;
@@ -199,12 +233,15 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
         _categoriaError = itemErrors.categoriaError;
         _cantidadError = itemErrors.cantidadError;
         _condicionError = itemErrors.condicionError;
+        _presentacionError = presentacionError;
+        _caducidadError = caducidadError;
         _ubicacionError = itemErrors.ubicacionError;
         _submitError = null;
       });
       return;
     }
 
+    final contenido = _packageContentController.text.trim();
     await _runSave(
       () => store.updateItemPublication(
         publicationId: widget.publication.id,
@@ -214,8 +251,17 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
           categoriaId: _categoryId!,
           fotografias: _photos,
           cantidad: quantity,
-          condicion: _condition,
+          condicion: effectiveCondition,
           ubicacionEtiqueta: _locationController.text,
+          caracteristicas: _isFoodItem
+              ? {
+                  if (presentacion != null)
+                    'Presentación': presentacion.etiqueta,
+                  if (presentacion != null && contenido.isNotEmpty)
+                    'Contenido por envase': contenido,
+                  if (caducidad.isNotEmpty) 'Fecha de caducidad': caducidad,
+                }
+              : null,
         ),
       ),
     );
@@ -230,6 +276,8 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
       _categoriaError = null;
       _cantidadError = null;
       _condicionError = null;
+      _presentacionError = null;
+      _caducidadError = null;
       _urgenciaError = null;
       _ubicacionError = null;
       _aliasError = null;
@@ -339,9 +387,58 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
                 onChanged: (value) => setState(() {
                   _categoryId = value;
                   _categoriaError = null;
+                  _presentacionError = null;
+                  _caducidadError = null;
                 }),
                 errorText: _categoriaError,
               ),
+              if (_isFoodItem) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<PresentacionAlimento>(
+                  key: const Key('edit_pub_food_package_field'),
+                  initialValue: _presentacionAlimento,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Presentación del alimento *',
+                    prefixIcon: const Icon(Icons.inventory_2_outlined),
+                    errorText: _presentacionError,
+                  ),
+                  items: [
+                    for (final presentacion in PresentacionAlimento.values)
+                      DropdownMenuItem(
+                        value: presentacion,
+                        child: Text(presentacion.etiqueta),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _presentacionAlimento = value;
+                    _presentacionError = null;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('edit_pub_food_package_content_field'),
+                  controller: _packageContentController,
+                  decoration: const InputDecoration(
+                    labelText: 'Contenido por envase (opcional)',
+                    hintText: 'Ej. 400 g o 500 ml',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('edit_pub_food_expiration_field'),
+                  controller: _expirationDateController,
+                  keyboardType: TextInputType.datetime,
+                  onChanged: (_) => setState(() => _caducidadError = null),
+                  decoration: InputDecoration(
+                    labelText: 'Fecha de caducidad (opcional)',
+                    helperText: 'Formato DD/MM/AAAA.',
+                    prefixIcon: const Icon(Icons.event_outlined),
+                    errorText: _caducidadError,
+                    errorMaxLines: 2,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 key: const Key('edit_pub_quantity_field'),
@@ -350,8 +447,11 @@ class _EditPublicationSheetState extends ConsumerState<EditPublicationSheet> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 onChanged: (_) => setState(() => _cantidadError = null),
                 decoration: InputDecoration(
-                  labelText:
-                      _isNeed ? 'Cantidad requerida *' : 'Cantidad disponible *',
+                  labelText: _isNeed
+                      ? 'Cantidad requerida *'
+                      : (_isFoodItem
+                            ? 'Número de envases *'
+                            : 'Cantidad disponible *'),
                   errorText: _cantidadError,
                 ),
               ),

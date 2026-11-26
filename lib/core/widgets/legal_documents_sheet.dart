@@ -191,7 +191,7 @@ class _TermsAndConditionsContent extends StatelessWidget {
         _LegalClause(
           title: '2. Artículos permitidos y reglas de Alimentación',
           body:
-              'Los artículos ofrecidos deben encontrarse en condiciones seguras e higiénicas. En la categoría de Alimentación solo se permiten alimentos en envases cerrados (latas, bolsas, cajas, botellas, frascos o sobres), especificando su presentación y respetando su fecha de caducidad vigente.',
+              'Los artículos ofrecidos deben encontrarse en condiciones seguras e higiénicas. En la categoría de Alimentación solo se permiten alimentos en envases cerrados (latas, botellas, sobres u otra presentación sellada), especificando su presentación y respetando su fecha de caducidad vigente.',
         ),
         SizedBox(height: 12),
         _LegalClause(

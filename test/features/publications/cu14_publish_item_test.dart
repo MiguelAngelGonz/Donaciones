@@ -1,6 +1,7 @@
 import 'package:donaciones/app/router.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
+import 'package:donaciones/core/models/dto_inputs.dart';
 import 'package:donaciones/features/publications/presentation/publish_item_form.dart';
 import 'package:donaciones/main.dart';
 import 'package:flutter/material.dart';
@@ -454,6 +455,115 @@ void main() {
           find.text('La primera fotografía del artículo es obligatoria.'),
           findsOneWidget,
         );
+      },
+    );
+
+    testWidgets(
+      'CU-16 Alimentación: EditPublicationSheet precarga, valida y actualiza presentación, contenido y caducidad, y maneja cambio de categoría',
+      (tester) async {
+        final (store, container) = await pumpAppAtCreateItem(tester);
+
+        // Crear un artículo de Alimentación para editarlo
+        final createdFood = await store.createItemPublication(
+          const CreateItemInput(
+            titulo: 'Arroz integral',
+            descripcion: 'Sobres sellados',
+            categoriaId: CategoriaMock.alimentacionId,
+            fotografias: ['sample://despensa_1.jpg'],
+            cantidad: 4,
+            condicion: null,
+            ubicacionEtiqueta: 'Col. Centro, CP 72000',
+            caracteristicas: {
+              'Presentación': 'Sobres',
+              'Contenido por envase': '1 kg',
+              'Fecha de caducidad': '15/10/2027',
+            },
+          ),
+        );
+
+        container.read(appRouterProvider).go('/publications/${createdFood.id}');
+        await tester.pumpAndSettle();
+
+        final editBtn = find.byKey(const Key('detail_edit_publication_button'));
+        await tester.ensureVisible(editBtn);
+        await tester.tap(editBtn);
+        await tester.pumpAndSettle();
+
+        final packageField = find.byKey(const Key('edit_pub_food_package_field'));
+        final contentField =
+            find.byKey(const Key('edit_pub_food_package_content_field'));
+        final expirationField =
+            find.byKey(const Key('edit_pub_food_expiration_field'));
+        final saveBtn = find.byKey(const Key('edit_pub_save_button'));
+
+        expect(packageField, findsOneWidget);
+        expect(contentField, findsOneWidget);
+        expect(expirationField, findsOneWidget);
+        expect(find.text('Número de envases *'), findsOneWidget);
+        expect(find.text('Sobres'), findsOneWidget);
+
+        // Fecha de caducidad inválida es rechazada
+        await tester.enterText(expirationField, '31/02/2028');
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Ingresa una fecha válida con el formato DD/MM/AAAA.'),
+          findsOneWidget,
+        );
+
+        // Actualizar presentación, contenido y caducidad válida
+        await tester.ensureVisible(packageField);
+        await tester.pumpAndSettle();
+        await tester.tap(packageField);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Latas').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(contentField, '2 kg');
+        await tester.enterText(expirationField, '20/12/2027');
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+
+        final updatedFood = store.findPublicationById(createdFood.id)!;
+        expect(updatedFood.condicion, isNull);
+        expect(updatedFood.caracteristicas, {
+          'Presentación': 'Latas',
+          'Contenido por envase': '2 kg',
+          'Fecha de caducidad': '20/12/2027',
+        });
+
+        // Reabrir edición y cambiar categoría de Alimentación a Ropa -> exige condición y limpia características de alimento
+        await tester.ensureVisible(editBtn);
+        await tester.tap(editBtn);
+        await tester.pumpAndSettle();
+
+        final catDropdown = find.byKey(const Key('edit_pub_category_dropdown'));
+        await tester.ensureVisible(catDropdown);
+        await tester.tap(catDropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Ropa').last);
+        await tester.pumpAndSettle();
+
+        expect(packageField, findsNothing);
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Selecciona el estado físico del artículo.'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Nuevo'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pumpAndSettle();
+
+        final switchedToClothes = store.findPublicationById(createdFood.id)!;
+        expect(switchedToClothes.categoriaId, 'cat-ropa');
+        expect(switchedToClothes.condicion, CondicionArticulo.nuevo);
+        expect(switchedToClothes.caracteristicas, isEmpty);
       },
     );
   });
