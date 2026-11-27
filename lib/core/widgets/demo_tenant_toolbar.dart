@@ -17,6 +17,7 @@ class DemoTenantToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(mockTenantStoreProvider);
+    if (store.isOnline) return const SizedBox.shrink();
     final accessibility = ref.watch(accessibilityProvider);
     final theme = Theme.of(context);
     final users = store.users;

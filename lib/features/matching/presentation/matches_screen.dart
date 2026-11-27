@@ -60,9 +60,7 @@ class MatchesScreen extends ConsumerWidget {
     final matches = store.getMatchesForUser(activeUser.id);
     final unreadMatchNotifications = store
         .getNotificationsForUser(activeUser.id)
-        .where(
-          (n) => !n.leida && n.tipo == TipoNotificacion.nuevaCoincidencia,
-        )
+        .where((n) => !n.leida && n.tipo == TipoNotificacion.nuevaCoincidencia)
         .length;
 
     return ListView(
@@ -89,7 +87,10 @@ class MatchesScreen extends ConsumerWidget {
                     ),
                     if (unreadMatchNotifications > 0)
                       ActionChip(
-                        avatar: const Icon(Icons.notifications_active_outlined, size: 16),
+                        avatar: const Icon(
+                          Icons.notifications_active_outlined,
+                          size: 16,
+                        ),
                         label: Text('$unreadMatchNotifications avisos nuevos'),
                         onPressed: () => showNotificationsSheet(context),
                       ),
@@ -125,9 +126,9 @@ class MatchesScreen extends ConsumerWidget {
                             ? null
                             : store.findUserById(other.autorId);
                       })(),
-                      onOpenCounterpart: () => GoRouter.maybeOf(context)?.push(
-                        '/publications/${match.publicacionParId}',
-                      ),
+                      onOpenCounterpart: () =>
+                          GoRouter.maybeOf(context)
+                              ?.push('/publications/${match.publicacionParId}'),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -228,11 +229,12 @@ class _MatchCard extends StatelessWidget {
                   label: Text(category?.nombre ?? 'Categoría'),
                 ),
                 UrgencyBadge(urgencia: match.urgencia),
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  avatar: const Icon(Icons.near_me_outlined, size: 15),
-                  label: Text('${match.distanciaKm.toStringAsFixed(1)} km'),
-                ),
+                if (match.distanciaKm case final distance?)
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.near_me_outlined, size: 15),
+                    label: Text('${distance.toStringAsFixed(1)} km'),
+                  ),
               ],
             ),
             const SizedBox(height: 10),
@@ -252,9 +254,7 @@ class _MatchCard extends StatelessWidget {
             ),
             if (otherPub?.gestionadaPorIntermediario == true) ...[
               const SizedBox(height: 8),
-              IntermediaryBadge(
-                aliasBeneficiario: otherPub?.aliasBeneficiario,
-              ),
+              IntermediaryBadge(aliasBeneficiario: otherPub?.aliasBeneficiario),
             ],
             if (otherAuthor != null) ...[
               const SizedBox(height: 8),

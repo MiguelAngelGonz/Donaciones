@@ -1,6 +1,8 @@
 import 'package:donaciones/app/theme.dart';
+import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
+import 'package:donaciones/core/widgets/legal_documents_sheet.dart';
 import 'package:donaciones/features/auth/presentation/auth_form_widgets.dart';
 import 'package:donaciones/features/auth/presentation/register_controller.dart';
 import 'package:flutter/material.dart';
@@ -68,7 +70,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _navigateBackOrHome,
         ),
-        title: const Text('Crear cuenta en DonaPlus'),
+        title: const Text('Crear cuenta en Komuna'),
       ),
       body: Column(
         children: [
@@ -83,6 +85,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ? _PostRegistrationView(
                           user: state.registeredUser!,
                           state: state,
+                          online: ref.watch(mockTenantStoreProvider).isOnline,
                           onVerifyAndEnter: () async {
                             final ok = await controller.simulateVerifyEmail();
                             if (ok && context.mounted) {
@@ -265,11 +268,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            ProfileAvatarSelector(
-              selectedPhoto: state.photoPerfil,
-              previewName: _legalNameController.text,
-              onChanged: controller.setPhotoPerfil,
-            ),
+            if (!ref.watch(mockTenantStoreProvider).isOnline)
+              ProfileAvatarSelector(
+                selectedPhoto: state.photoPerfil,
+                previewName: _legalNameController.text,
+                onChanged: controller.setPhotoPerfil,
+              ),
             const SizedBox(height: 20),
             Row(
               children: [
@@ -306,11 +310,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   ) {
     final avatarLabel = state.photoPerfil == null
         ? 'Sin fotografía'
-        : sampleProfileAvatars
-            .where((a) => a.path == state.photoPerfil)
-            .map((a) => a.label)
-            .firstOrNull ??
-            'Foto seleccionada';
+        : (state.photoPerfil!.startsWith('device://') ||
+                  state.photoPerfil!.startsWith('file://'))
+            ? 'Fotografía del dispositivo'
+            : sampleProfileAvatars
+                    .where((a) => a.path == state.photoPerfil)
+                    .map((a) => a.label)
+                    .firstOrNull ??
+                'Foto seleccionada';
 
     return Card(
       child: Padding(
@@ -353,7 +360,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             const SizedBox(height: 12),
             Container(
-              height: 130,
+              height: 150,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -365,23 +372,50 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Aviso de Privacidad de DonaPlus',
+                      'Aviso de Privacidad y Términos de Uso de Komuna',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'DonaPlus protege tus datos personales conforme al principio de minimización (RNF-09). '
+                      'Komuna protege tus datos personales conforme al principio de minimización (RNF-09). '
                       'Tu ubicación se limita únicamente a colonia o código postal y nunca solicitamos ni mostramos tu domicilio exacto. '
                       'Tu teléfono permanece oculto en las conversaciones salvo que decidas compartirlo explícitamente durante una donación. '
-                      'Tu contraseña se transforma mediante resumen criptográfico SHA-256 (RNF-07) y nunca se almacena en texto plano.',
+                      'Tu contraseña se protege mediante un resumen criptográfico y nunca se almacena en texto plano.\n\n'
+                      'Términos de Uso: Todas las donaciones son 100% gratuitas (queda prohibida la venta o cobro), '
+                      'los alimentos deben entregarse en envases cerrados con fecha de caducidad vigente y las entregas se coordinan en puntos seguros.',
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton.icon(
+                  key: const Key('register_open_privacy_button'),
+                  onPressed: () => showLegalDocumentsSheet(
+                    context,
+                    initialTab: LegalDocumentTab.privacy,
+                  ),
+                  icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+                  label: const Text('Ver Aviso de Privacidad'),
+                ),
+                TextButton.icon(
+                  key: const Key('register_open_terms_button'),
+                  onPressed: () => showLegalDocumentsSheet(
+                    context,
+                    initialTab: LegalDocumentTab.terms,
+                  ),
+                  icon: const Icon(Icons.gavel_outlined, size: 18),
+                  label: const Text('Ver Términos y Condiciones'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
@@ -390,6 +424,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ? null
                   : (checked) => controller.setPrivacyAccepted(checked ?? false),
               title: const Text('He leído y acepto el aviso de privacidad'),
+              subtitle: const Text(
+                'Incluye los Términos y Condiciones de Uso de Komuna.',
+              ),
             ),
             if (state.privacyError != null) ...[
               const SizedBox(height: 6),
@@ -491,6 +528,7 @@ class _StepProgressHeader extends StatelessWidget {
 class _PostRegistrationView extends StatelessWidget {
   final UsuarioMock user;
   final RegisterState state;
+  final bool online;
   final VoidCallback onVerifyAndEnter;
   final VoidCallback onContinueUnverified;
   final VoidCallback onGoToLogin;
@@ -498,6 +536,7 @@ class _PostRegistrationView extends StatelessWidget {
   const _PostRegistrationView({
     required this.user,
     required this.state,
+    required this.online,
     required this.onVerifyAndEnter,
     required this.onContinueUnverified,
     required this.onGoToLogin,
@@ -519,7 +558,9 @@ class _PostRegistrationView extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              '¡Cuenta creada con éxito! Enviamos un enlace de verificación a tu correo.',
+              online && user.correoVerificado
+                  ? 'Tu cuenta ya está activa.'
+                  : '¡Cuenta creada con éxito! Enviamos un enlace de verificación a tu correo.',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -568,23 +609,25 @@ class _PostRegistrationView extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: state.isSubmitting ? null : onVerifyAndEnter,
-              icon: const Icon(Icons.verified_outlined),
-              label: const Text(
-                'Simular verificación de correo (CU-02) y entrar',
-                textAlign: TextAlign.center,
+            if (!online) ...[
+              FilledButton.icon(
+                onPressed: state.isSubmitting ? null : onVerifyAndEnter,
+                icon: const Icon(Icons.verified_outlined),
+                label: const Text(
+                  'Simular verificación de correo (CU-02) y entrar',
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: state.isSubmitting ? null : onContinueUnverified,
-              child: const Text(
-                'Continuar sin verificar (probar restricción CU-02 2a)',
-                textAlign: TextAlign.center,
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: state.isSubmitting ? null : onContinueUnverified,
+                child: const Text(
+                  'Continuar sin verificar (probar restricción CU-02 2a)',
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
+            ],
             TextButton(
               onPressed: onGoToLogin,
               child: const Text('Ir a iniciar sesión'),

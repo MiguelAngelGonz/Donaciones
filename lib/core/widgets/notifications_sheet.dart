@@ -3,6 +3,7 @@ import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Opens the notifications inbox bottom sheet for the active user.
 Future<void> showNotificationsSheet(BuildContext context) {
@@ -59,7 +60,53 @@ class NotificationsSheet extends ConsumerWidget {
       TipoNotificacion.propuestaRechazada => Icons.cancel_outlined,
       TipoNotificacion.cambioEstadoDonacion => Icons.local_shipping_outlined,
       TipoNotificacion.decisionRolIntermediario => Icons.verified_user_outlined,
+      TipoNotificacion.nuevoMensaje => Icons.chat_bubble_outline,
     };
+  }
+
+  Future<bool> _markRead(
+    BuildContext context,
+    MockTenantStore store,
+    List<String> ids,
+  ) async {
+    try {
+      await store.markNotificationsAsRead(ids);
+      return true;
+    } on Exception {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudieron marcar los avisos. Intenta de nuevo.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _openNotification(
+    BuildContext context,
+    MockTenantStore store,
+    NotificacionMock notification,
+  ) async {
+    if (!notification.leida &&
+        !await _markRead(context, store, [notification.id])) {
+      return;
+    }
+    if (!context.mounted) return;
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    final donationId = notification.donacionId;
+    Navigator.of(context).pop();
+    if (donationId != null) {
+      router.push('/donations/$donationId');
+    } else if (notification.tipo == TipoNotificacion.nuevaCoincidencia) {
+      router.go('/matches');
+    } else {
+      router.go('/donations');
+    }
   }
 
   @override
@@ -101,11 +148,11 @@ class NotificationsSheet extends ConsumerWidget {
                   ),
                   if (unread.isNotEmpty)
                     TextButton(
-                      onPressed: () {
-                        for (final item in unread) {
-                          store.markNotificationAsRead(item.id);
-                        }
-                      },
+                      onPressed: () => _markRead(
+                        context,
+                        store,
+                        unread.map((item) => item.id).toList(),
+                      ),
                       child: const Text('Marcar todas'),
                     ),
                   IconButton(
@@ -167,19 +214,17 @@ class NotificationsSheet extends ConsumerWidget {
                                   Icons.mark_email_read_outlined,
                                   color: theme.colorScheme.secondary,
                                 ),
-                                onPressed: () => store.markNotificationAsRead(
+                                onPressed: () => _markRead(context, store, [
                                   notification.id,
-                                ),
+                                ]),
                               )
                             : const Icon(
                                 Icons.done_all,
                                 size: 18,
                                 color: Colors.grey,
                               ),
-                        onTap: isUnread
-                            ? () =>
-                                  store.markNotificationAsRead(notification.id)
-                            : null,
+                        onTap: () =>
+                            _openNotification(context, store, notification),
                       );
                     },
                   ),

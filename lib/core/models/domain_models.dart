@@ -46,12 +46,14 @@ enum TipoNotificacion {
   propuestaRechazada,
   cambioEstadoDonacion,
   decisionRolIntermediario,
+  nuevoMensaje,
 }
 
 /// Approximate location limited to neighborhood or postal code (RNF-09).
 class UbicacionMock {
   /// Display label (colonia or CP, never exact street address).
   final String etiqueta;
+  final String? codigoPostal;
 
   /// Precomputed simulated distance in kilometers from the default tenant center.
   final double distanciaKmSimulada;
@@ -64,6 +66,7 @@ class UbicacionMock {
 
   const UbicacionMock({
     required this.etiqueta,
+    this.codigoPostal,
     this.distanciaKmSimulada = 2.4,
     this.latitud = 19.0414,
     this.longitud = -98.2063,
@@ -94,6 +97,7 @@ class UbicacionMock {
   }) {
     return UbicacionMock(
       etiqueta: etiqueta ?? this.etiqueta,
+      codigoPostal: codigoPostal,
       distanciaKmSimulada: distanciaKmSimulada ?? this.distanciaKmSimulada,
       latitud: latitud ?? this.latitud,
       longitud: longitud ?? this.longitud,
@@ -389,7 +393,7 @@ class CoincidenciaMock {
   final String articuloId;
   final String categoriaId;
   final Urgencia urgencia;
-  final double distanciaKm;
+  final double? distanciaKm;
   final List<String> caracteristicasCumplidas;
 
   const CoincidenciaMock({

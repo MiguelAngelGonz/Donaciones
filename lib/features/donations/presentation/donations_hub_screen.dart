@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Hub screen with 3 sub-tabs: Propuestas, En curso, and Historial (CU-25..CU-30, CU-38, CU-39).
+/// Shows proposals, donations in progress, donation history, and the user’s publications.
 class DonationsHubScreen extends ConsumerStatefulWidget {
   const DonationsHubScreen({super.key});
 
@@ -160,7 +160,10 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
     }
 
     final receivedProposals = store.getReceivedPendingProposals(activeUser.id);
-    final sentProposals = store.getSentProposals(activeUser.id).reversed.toList();
+    final sentProposals = store
+        .getSentProposals(activeUser.id)
+        .reversed
+        .toList();
     final activeDonations = store.getActiveDonationsForUser(activeUser.id);
     final historyDonations = store.getDonationHistoryForUser(
       activeUser.id,
@@ -168,30 +171,34 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
       finalState: _historyStateFilter,
     );
 
+    final ownPublications =
+        store.publications
+            .where((publication) => publication.autorId == activeUser.id)
+            .toList()
+          ..sort((a, b) => b.fechaPublicacion.compareTo(a.fechaPublicacion));
+
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(
         children: [
           Material(
             color: Colors.white,
             child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 14),
               labelColor: theme.colorScheme.primary,
               unselectedLabelColor: theme.colorScheme.onSurface.withValues(
                 alpha: 0.72,
               ),
               indicatorColor: theme.colorScheme.secondary,
               tabs: const [
+                Tab(key: Key('donations_tab_proposals'), text: 'Propuestas'),
+                Tab(key: Key('donations_tab_active'), text: 'En curso'),
+                Tab(key: Key('donations_tab_history'), text: 'Historial'),
                 Tab(
-                  key: Key('donations_tab_proposals'),
-                  text: 'Propuestas',
-                ),
-                Tab(
-                  key: Key('donations_tab_active'),
-                  text: 'En curso',
-                ),
-                Tab(
-                  key: Key('donations_tab_history'),
-                  text: 'Historial',
+                  key: Key('donations_tab_my_publications'),
+                  text: 'Mis publicaciones',
                 ),
               ],
             ),
@@ -217,11 +224,73 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
                   activeUser: activeUser,
                   historyDonations: historyDonations,
                 ),
+                _buildMyPublicationsTab(ownPublications),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMyPublicationsTab(List<PublicacionMock> publications) {
+    return ListView.builder(
+      key: const PageStorageKey('donations_my_publications'),
+      padding: const EdgeInsets.all(16),
+      itemCount: publications.isEmpty ? 1 : publications.length,
+      itemBuilder: (context, index) {
+        if (publications.isEmpty) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 740),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Aún no tienes publicaciones.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: () => _goRoute('/create'),
+                        child: const Text('Crear publicación'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final publication = publications[index];
+        final isNeed = publication.tipo == TipoPublicacion.necesidad;
+        final type = isNeed ? 'Necesito' : 'Quiero donar';
+        final state = labelForEstadoPublicacion(publication.estado);
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 740),
+            child: Card(
+              child: ListTile(
+                key: ValueKey('my_publication_${publication.id}'),
+                leading: Icon(
+                  isNeed
+                      ? Icons.volunteer_activism_outlined
+                      : Icons.card_giftcard,
+                ),
+                title: Text(publication.titulo),
+                subtitle: Text('$type · $state'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () =>
+                    _goRoute('/publications/${publication.id}', push: true),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -287,9 +356,7 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
                   const Card(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: Text(
-                        'No tienes propuestas recibidas pendientes.',
-                      ),
+                      child: Text('No tienes propuestas recibidas pendientes.'),
                     ),
                   )
                 else
@@ -341,7 +408,8 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
                             ? null
                             : store.findUserById(pub.autorId);
                       }(),
-                      linkedDonation: proposal.estado == EstadoPropuesta.aceptada
+                      linkedDonation:
+                          proposal.estado == EstadoPropuesta.aceptada
                           ? _findDonationForProposal(store, proposal.id)
                           : null,
                       isBusy: _busyProposalId == proposal.id,
@@ -406,10 +474,8 @@ class _DonationsHubScreenState extends ConsumerState<DonationsHubScreen> {
                               : (activeUser.id == donation.intermediarioId
                                     ? 'Como intermediario'
                                     : 'Como donatario'),
-                          onOpenTracking: () => _goRoute(
-                            '/donations/${donation.id}',
-                            push: true,
-                          ),
+                          onOpenTracking: () =>
+                              _goRoute('/donations/${donation.id}', push: true),
                         ),
                         const SizedBox(height: 10),
                       ],
@@ -811,7 +877,10 @@ class _ActiveDonationCard extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 DonationStatusBadge(estado: donation.estado),
-                Chip(visualDensity: VisualDensity.compact, label: Text(roleLabel)),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text(roleLabel),
+                ),
               ],
             ),
             const SizedBox(height: 8),

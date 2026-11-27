@@ -65,8 +65,8 @@ void main() {
       expect(diego.faltantesDonaciones, 3);
       expect(diego.faltantesResenas, 1);
 
-      expect(store.categories.length, 6);
-      expect(store.getActiveCategories().length, 5);
+      expect(store.categories.length, 7);
+      expect(store.getActiveCategories().length, 6);
       expect(
         store.getActiveCategories().map((c) => c.id),
         isNot(contains('cat-inactiva')),
@@ -882,14 +882,14 @@ void main() {
         () => store.createCategory(name: 'Nueva Cat'),
         throwsA(isA<NetworkException>()),
       );
-      expect(store.categories.length, 6);
+      expect(store.categories.length, 7);
 
       store.setSimulateNetworkError(false);
       await store.createCategory(name: 'Nueva Cat');
-      expect(store.categories.length, 7);
+      expect(store.categories.length, 8);
 
       store.resetToSeed();
-      expect(store.categories.length, 6);
+      expect(store.categories.length, 7);
       expect(store.users.length, 3);
       expect(store.activeUser?.id, 'usr-alondra');
       expect(store.filterActivePublications().length, 4);

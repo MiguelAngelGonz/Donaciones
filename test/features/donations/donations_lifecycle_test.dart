@@ -6,6 +6,7 @@ import 'package:donaciones/features/donations/presentation/donation_ui_helpers.d
 import 'package:donaciones/features/donations/presentation/donations_hub_screen.dart';
 import 'package:donaciones/features/proposals/presentation/offer_item_sheet.dart';
 import 'package:donaciones/features/proposals/presentation/request_item_sheet.dart';
+import 'package:donaciones/features/publications/presentation/publication_detail_screen.dart';
 import 'package:donaciones/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,8 +36,30 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  group('CU-25 a CU-29: Propuestas enviadas, recibidas, retiro, aceptación y rechazo',
-      () {
+  testWidgets('Mis publicaciones muestra las propias y abre su detalle', (
+    tester,
+  ) async {
+    await pumpAppAtRoute(tester, '/donations');
+    await tapVisible(
+      tester,
+      find.byKey(const Key('donations_tab_my_publications')),
+    );
+
+    expect(find.byKey(const Key('my_publication_pub-hist-1')), findsOneWidget);
+    expect(find.byKey(const Key('my_publication_pub-3')), findsNothing);
+    expect(find.text('Quiero donar · Cerrada'), findsWidgets);
+
+    await tapVisible(
+      tester,
+      find.byKey(const Key('my_publication_pub-hist-1')),
+    );
+    final detail = tester.widget<PublicationDetailScreen>(
+      find.byType(PublicationDetailScreen),
+    );
+    expect(detail.publicationId, 'pub-hist-1');
+  });
+
+  group('CU-25 a CU-29: Propuestas enviadas, recibidas, retiro, aceptación y rechazo', () {
     testWidgets(
       'CU-25 & CU-29: remitente retira propuesta enviada y autor rechaza propuesta con motivo opcional',
       (tester) async {
@@ -64,10 +87,7 @@ void main() {
           tester,
           find.byKey(Key('withdraw_proposal_${alondraProp.id}')),
         );
-        expect(
-          find.textContaining('pérdida de conexión'),
-          findsOneWidget,
-        );
+        expect(find.textContaining('pérdida de conexión'), findsOneWidget);
         expect(
           store.proposals.firstWhere((p) => p.id == alondraProp.id).estado,
           EstadoPropuesta.pendiente,
@@ -106,8 +126,9 @@ void main() {
           find.byKey(const Key('confirm_reject_proposal_button')),
         );
 
-        final rejected =
-            store.proposals.firstWhere((p) => p.id == diegoProp.id);
+        final rejected = store.proposals.firstWhere(
+          (p) => p.id == diegoProp.id,
+        );
         expect(rejected.estado, EstadoPropuesta.rechazada);
         expect(rejected.motivoRechazo, 'Ya acordamos entrega con otro vecino.');
         expect(
@@ -118,8 +139,7 @@ void main() {
     );
   });
 
-  group('CU-26 a CU-37: Ciclo completo de donación, chat, privacidad de teléfono, reloj y reseñas',
-      () {
+  group('CU-26 a CU-37: Ciclo completo de donación, chat, privacidad de teléfono, reloj y reseñas', () {
     testWidgets(
       'Ciclo E2E en UI: aceptar propuesta, chatear y compartir teléfono, programar entrega, entregar, confirmar, historial y reseña',
       (tester) async {
@@ -212,10 +232,7 @@ void main() {
           'En el Parque del Carmen a las 5pm.',
         );
         await tapVisible(tester, find.byKey(const Key('chat_send_button')));
-        expect(
-          find.text('En el Parque del Carmen a las 5pm.'),
-          findsOneWidget,
-        );
+        expect(find.text('En el Parque del Carmen a las 5pm.'), findsOneWidget);
 
         // CU-32: validate empty delivery place, then register valid place and date
         await tapVisible(
@@ -245,7 +262,10 @@ void main() {
         // CU-33: switch to donor usr-maria and mark delivered
         store.setActiveUser('usr-maria');
         await tester.pumpAndSettle();
-        await tapVisible(tester, find.byKey(const Key('mark_delivered_button')));
+        await tapVisible(
+          tester,
+          find.byKey(const Key('mark_delivered_button')),
+        );
 
         expect(
           store.findDonationById(donation.id)?.estado,
@@ -261,7 +281,10 @@ void main() {
         // CU-34: switch to recipient usr-alondra and confirm receipt
         store.setActiveUser('usr-alondra');
         await tester.pumpAndSettle();
-        await tapVisible(tester, find.byKey(const Key('confirm_received_button')));
+        await tapVisible(
+          tester,
+          find.byKey(const Key('confirm_received_button')),
+        );
 
         expect(
           store.findDonationById(donation.id)?.estado,
@@ -357,7 +380,9 @@ void main() {
         await tester.tap(find.text('+15d'));
         await tester.pumpAndSettle();
         expect(
-          find.text('El plazo de 14 días para reseñar esta donación ha vencido'),
+          find.text(
+            'El plazo de 14 días para reseñar esta donación ha vencido',
+          ),
           findsOneWidget,
         );
         expect(find.byKey(const Key('submit_review_button')), findsNothing);
@@ -399,10 +424,7 @@ void main() {
           find.text('Debes indicar el motivo de la cancelación.'),
           findsOneWidget,
         );
-        expect(
-          store.findDonationById(don.id)?.estado,
-          EstadoDonacion.aceptada,
-        );
+        expect(store.findDonationById(don.id)?.estado, EstadoDonacion.aceptada);
 
         // Provide mandatory reason and confirm
         await tester.enterText(
@@ -520,7 +542,10 @@ void main() {
         await tapVisible(tester, find.byKey(const Key('donations_tab_active')));
         expect(tester.takeException(), isNull);
 
-        await tapVisible(tester, find.byKey(const Key('donations_tab_history')));
+        await tapVisible(
+          tester,
+          find.byKey(const Key('donations_tab_history')),
+        );
         expect(tester.takeException(), isNull);
 
         // DonationTrackingScreen (active & finalized)
@@ -556,266 +581,273 @@ void main() {
     );
   });
 
-  group('Fix Round 1 Regressions: stale banner & RNF-11 retry clientKey reuse',
-      () {
-    testWidgets(
-      'ocultar banner de Propuesta aceptada al cancelar la donación y regresar desde Tracking',
-      (tester) async {
-        final (store, container) = await pumpAppAtRoute(tester, '/donations');
+  group(
+    'Fix Round 1 Regressions: stale banner & RNF-11 retry clientKey reuse',
+    () {
+      testWidgets(
+        'ocultar banner de Propuesta aceptada al cancelar la donación y regresar desde Tracking',
+        (tester) async {
+          final (store, container) = await pumpAppAtRoute(tester, '/donations');
 
-        // Scenario A: DonationsHubScreen
-        final prop1 = await store.createRequestProposal(
-          publicationId: 'pub-3',
-          senderId: 'usr-alondra',
-          message: 'Solicitud para probar cancelación desde seguimiento.',
-          clientKey: 'ck-fix1-hub',
-        );
-        store.setActiveUser('usr-maria');
-        await tester.pumpAndSettle();
+          // Scenario A: DonationsHubScreen
+          final prop1 = await store.createRequestProposal(
+            publicationId: 'pub-3',
+            senderId: 'usr-alondra',
+            message: 'Solicitud para probar cancelación desde seguimiento.',
+            clientKey: 'ck-fix1-hub',
+          );
+          store.setActiveUser('usr-maria');
+          await tester.pumpAndSettle();
 
-        await tapVisible(
-          tester,
-          find.byKey(Key('accept_proposal_${prop1.id}')),
-        );
-        expect(find.textContaining('¡Propuesta aceptada!'), findsOneWidget);
+          await tapVisible(
+            tester,
+            find.byKey(Key('accept_proposal_${prop1.id}')),
+          );
+          expect(find.textContaining('¡Propuesta aceptada!'), findsOneWidget);
 
-        await tapVisible(
-          tester,
-          find.byKey(const Key('accepted_donation_track_button')),
-        );
-        expect(find.byType(DonationTrackingScreen), findsOneWidget);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('accepted_donation_track_button')),
+          );
+          expect(find.byType(DonationTrackingScreen), findsOneWidget);
 
-        await tapVisible(
-          tester,
-          find.byKey(const Key('cancel_donation_button')),
-        );
-        await tester.enterText(
-          find.byKey(const Key('cancel_donation_reason_field')),
-          'Cancelada por cambio de disponibilidad.',
-        );
-        await tapVisible(
-          tester,
-          find.byKey(const Key('confirm_cancel_donation_button')),
-        );
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
+          await tapVisible(
+            tester,
+            find.byKey(const Key('cancel_donation_button')),
+          );
+          await tester.enterText(
+            find.byKey(const Key('cancel_donation_reason_field')),
+            'Cancelada por cambio de disponibilidad.',
+          );
+          await tapVisible(
+            tester,
+            find.byKey(const Key('confirm_cancel_donation_button')),
+          );
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
 
-        await tapVisible(tester, find.byTooltip('Volver'));
-        expect(find.byType(DonationsHubScreen), findsOneWidget);
-        expect(find.textContaining('¡Propuesta aceptada!'), findsNothing);
+          await tapVisible(tester, find.byTooltip('Volver'));
+          expect(find.byType(DonationsHubScreen), findsOneWidget);
+          expect(find.textContaining('¡Propuesta aceptada!'), findsNothing);
 
-        // Scenario B: PublicationDetailScreen
-        final prop2 = await store.createRequestProposal(
-          publicationId: 'pub-4',
-          senderId: 'usr-alondra',
-          message: 'Solicitud para pub-4.',
-          clientKey: 'ck-fix1-detail',
-        );
-        store.setActiveUser('usr-diego');
-        container.read(appRouterProvider).go('/publications/pub-4');
-        await tester.pumpAndSettle();
+          // Scenario B: PublicationDetailScreen
+          final prop2 = await store.createRequestProposal(
+            publicationId: 'pub-4',
+            senderId: 'usr-alondra',
+            message: 'Solicitud para pub-4.',
+            clientKey: 'ck-fix1-detail',
+          );
+          store.setActiveUser('usr-diego');
+          container.read(appRouterProvider).go('/publications/pub-4');
+          await tester.pumpAndSettle();
 
-        await tapVisible(
-          tester,
-          find.byKey(Key('accept_proposal_${prop2.id}')),
-        );
-        expect(find.textContaining('¡Propuesta aceptada!'), findsOneWidget);
+          await tapVisible(
+            tester,
+            find.byKey(Key('accept_proposal_${prop2.id}')),
+          );
+          expect(find.textContaining('¡Propuesta aceptada!'), findsOneWidget);
 
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
-        await tapVisible(tester, find.text('Ver seguimiento de donación'));
-        expect(find.byType(DonationTrackingScreen), findsOneWidget);
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
+          await tapVisible(tester, find.text('Ver seguimiento de donación'));
+          expect(find.byType(DonationTrackingScreen), findsOneWidget);
 
-        await tapVisible(
-          tester,
-          find.byKey(const Key('cancel_donation_button')),
-        );
-        await tester.enterText(
-          find.byKey(const Key('cancel_donation_reason_field')),
-          'Cancelada desde detalle.',
-        );
-        await tapVisible(
-          tester,
-          find.byKey(const Key('confirm_cancel_donation_button')),
-        );
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
+          await tapVisible(
+            tester,
+            find.byKey(const Key('cancel_donation_button')),
+          );
+          await tester.enterText(
+            find.byKey(const Key('cancel_donation_reason_field')),
+            'Cancelada desde detalle.',
+          );
+          await tapVisible(
+            tester,
+            find.byKey(const Key('confirm_cancel_donation_button')),
+          );
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
 
-        await tapVisible(tester, find.byTooltip('Volver'));
-        expect(find.textContaining('¡Propuesta aceptada!'), findsNothing);
-        expect(
-          store.findPublicationById('pub-4')?.estado,
-          EstadoPublicacion.activa,
-        );
-      },
-    );
+          await tapVisible(tester, find.byTooltip('Volver'));
+          expect(find.textContaining('¡Propuesta aceptada!'), findsNothing);
+          expect(
+            store.findPublicationById('pub-4')?.estado,
+            EstadoPublicacion.activa,
+          );
+        },
+      );
 
-    testWidgets(
-      'RNF-11: reintento tras NetworkException reutiliza el mismo clientKey en aceptación y ciclo de donación',
-      (tester) async {
-        final spyStore = _SpyClientKeyStore();
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              mockTenantStoreProvider.overrideWith((ref) => spyStore),
-            ],
-            child: const DonaPlusApp(),
-          ),
-        );
-        await tester.pumpAndSettle();
+      testWidgets(
+        'RNF-11: reintento tras NetworkException reutiliza el mismo clientKey en aceptación y ciclo de donación',
+        (tester) async {
+          final spyStore = _SpyClientKeyStore();
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                mockTenantStoreProvider.overrideWith((ref) => spyStore),
+              ],
+              child: const DonaPlusApp(),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        final container = ProviderScope.containerOf(
-          tester.element(find.byType(DonaPlusApp)),
-        );
-        final router = container.read(appRouterProvider);
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(DonaPlusApp)),
+          );
+          final router = container.read(appRouterProvider);
 
-        // 1. DonationsHubScreen._acceptProposal retries with same clientKey
-        final propHub = await spyStore.createRequestProposal(
-          publicationId: 'pub-3',
-          senderId: 'usr-alondra',
-          message: 'Propuesta hub idempotente.',
-          clientKey: 'ck-spy-hub',
-        );
-        spyStore.setActiveUser('usr-maria');
-        router.go('/donations');
-        await tester.pumpAndSettle();
+          // 1. DonationsHubScreen._acceptProposal retries with same clientKey
+          final propHub = await spyStore.createRequestProposal(
+            publicationId: 'pub-3',
+            senderId: 'usr-alondra',
+            message: 'Propuesta hub idempotente.',
+            clientKey: 'ck-spy-hub',
+          );
+          spyStore.setActiveUser('usr-maria');
+          router.go('/donations');
+          await tester.pumpAndSettle();
 
-        spyStore.setSimulateNetworkError(true);
-        await tapVisible(
-          tester,
-          find.byKey(Key('accept_proposal_${propHub.id}')),
-        );
-        expect(find.textContaining('pérdida de conexión'), findsOneWidget);
+          spyStore.setSimulateNetworkError(true);
+          await tapVisible(
+            tester,
+            find.byKey(Key('accept_proposal_${propHub.id}')),
+          );
+          expect(find.textContaining('pérdida de conexión'), findsOneWidget);
 
-        spyStore.setSimulateNetworkError(false);
-        await tapVisible(
-          tester,
-          find.byKey(Key('accept_proposal_${propHub.id}')),
-        );
-        final hubAcceptKeys = spyStore.keysFor('accept');
-        expect(hubAcceptKeys.length, 2);
-        expect(hubAcceptKeys[1], hubAcceptKeys[0]);
+          spyStore.setSimulateNetworkError(false);
+          await tapVisible(
+            tester,
+            find.byKey(Key('accept_proposal_${propHub.id}')),
+          );
+          final hubAcceptKeys = spyStore.keysFor('accept');
+          expect(hubAcceptKeys.length, 2);
+          expect(hubAcceptKeys[1], hubAcceptKeys[0]);
 
-        final don1 = spyStore.donations.last;
+          final don1 = spyStore.donations.last;
 
-        // 2. PublicationDetailScreen._acceptProposal retries with same clientKey
-        final propDetail = await spyStore.createRequestProposal(
-          publicationId: 'pub-4',
-          senderId: 'usr-alondra',
-          message: 'Propuesta detail idempotente.',
-          clientKey: 'ck-spy-detail',
-        );
-        spyStore.setActiveUser('usr-diego');
-        router.go('/publications/pub-4');
-        await tester.pumpAndSettle();
+          // 2. PublicationDetailScreen._acceptProposal retries with same clientKey
+          final propDetail = await spyStore.createRequestProposal(
+            publicationId: 'pub-4',
+            senderId: 'usr-alondra',
+            message: 'Propuesta detail idempotente.',
+            clientKey: 'ck-spy-detail',
+          );
+          spyStore.setActiveUser('usr-diego');
+          router.go('/publications/pub-4');
+          await tester.pumpAndSettle();
 
-        spyStore.setSimulateNetworkError(true);
-        await tapVisible(
-          tester,
-          find.byKey(Key('accept_proposal_${propDetail.id}')),
-        );
-        expect(find.textContaining('pérdida de conexión'), findsOneWidget);
+          spyStore.setSimulateNetworkError(true);
+          await tapVisible(
+            tester,
+            find.byKey(Key('accept_proposal_${propDetail.id}')),
+          );
+          expect(find.textContaining('pérdida de conexión'), findsOneWidget);
 
-        spyStore.setSimulateNetworkError(false);
-        await tapVisible(
-          tester,
-          find.byKey(Key('accept_proposal_${propDetail.id}')),
-        );
-        final allAcceptKeys = spyStore.keysFor('accept');
-        expect(allAcceptKeys.length, 4);
-        expect(allAcceptKeys[3], allAcceptKeys[2]);
-        expect(allAcceptKeys[2], isNot(allAcceptKeys[0]));
+          spyStore.setSimulateNetworkError(false);
+          await tapVisible(
+            tester,
+            find.byKey(Key('accept_proposal_${propDetail.id}')),
+          );
+          final allAcceptKeys = spyStore.keysFor('accept');
+          expect(allAcceptKeys.length, 4);
+          expect(allAcceptKeys[3], allAcceptKeys[2]);
+          expect(allAcceptKeys[2], isNot(allAcceptKeys[0]));
 
-        final don2 = spyStore.donations.last;
+          final don2 = spyStore.donations.last;
 
-        // 3. DonationTrackingScreen: schedule, deliver, confirm retain key on retry
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
-        spyStore.setActiveUser('usr-maria');
-        router.go('/donations/${don1.id}');
-        await tester.pumpAndSettle();
+          // 3. DonationTrackingScreen: schedule, deliver, confirm retain key on retry
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
+          spyStore.setActiveUser('usr-maria');
+          router.go('/donations/${don1.id}');
+          await tester.pumpAndSettle();
 
-        await tester.enterText(
-          find.byKey(const Key('delivery_place_field')),
-          'Parque del Carmen',
-        );
-        spyStore.setSimulateNetworkError(true);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('register_delivery_schedule_button')),
-        );
-        spyStore.setSimulateNetworkError(false);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('register_delivery_schedule_button')),
-        );
-        final schedKeys = spyStore.keysFor('schedule');
-        expect(schedKeys.length, 2);
-        expect(schedKeys[1], schedKeys[0]);
+          await tester.enterText(
+            find.byKey(const Key('delivery_place_field')),
+            'Parque del Carmen',
+          );
+          spyStore.setSimulateNetworkError(true);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('register_delivery_schedule_button')),
+          );
+          spyStore.setSimulateNetworkError(false);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('register_delivery_schedule_button')),
+          );
+          final schedKeys = spyStore.keysFor('schedule');
+          expect(schedKeys.length, 2);
+          expect(schedKeys[1], schedKeys[0]);
 
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
-        spyStore.setSimulateNetworkError(true);
-        await tapVisible(tester, find.byKey(const Key('mark_delivered_button')));
-        spyStore.setSimulateNetworkError(false);
-        await tapVisible(tester, find.byKey(const Key('mark_delivered_button')));
-        final delivKeys = spyStore.keysFor('deliver');
-        expect(delivKeys.length, 2);
-        expect(delivKeys[1], delivKeys[0]);
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
+          spyStore.setSimulateNetworkError(true);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('mark_delivered_button')),
+          );
+          spyStore.setSimulateNetworkError(false);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('mark_delivered_button')),
+          );
+          final delivKeys = spyStore.keysFor('deliver');
+          expect(delivKeys.length, 2);
+          expect(delivKeys[1], delivKeys[0]);
 
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
-        spyStore.setActiveUser('usr-alondra');
-        await tester.pumpAndSettle();
-        spyStore.setSimulateNetworkError(true);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('confirm_received_button')),
-        );
-        spyStore.setSimulateNetworkError(false);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('confirm_received_button')),
-        );
-        final confKeys = spyStore.keysFor('confirm');
-        expect(confKeys.length, 2);
-        expect(confKeys[1], confKeys[0]);
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
+          spyStore.setActiveUser('usr-alondra');
+          await tester.pumpAndSettle();
+          spyStore.setSimulateNetworkError(true);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('confirm_received_button')),
+          );
+          spyStore.setSimulateNetworkError(false);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('confirm_received_button')),
+          );
+          final confKeys = spyStore.keysFor('confirm');
+          expect(confKeys.length, 2);
+          expect(confKeys[1], confKeys[0]);
 
-        // 4. DonationTrackingScreen: cancelDonation retains key across retry
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
-        router.go('/donations/${don2.id}');
-        await tester.pumpAndSettle();
+          // 4. DonationTrackingScreen: cancelDonation retains key across retry
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
+          router.go('/donations/${don2.id}');
+          await tester.pumpAndSettle();
 
-        await tapVisible(
-          tester,
-          find.byKey(const Key('cancel_donation_button')),
-        );
-        await tester.enterText(
-          find.byKey(const Key('cancel_donation_reason_field')),
-          'No disponible.',
-        );
-        spyStore.setSimulateNetworkError(true);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('confirm_cancel_donation_button')),
-        );
-        expect(find.textContaining('pérdida de conexión'), findsOneWidget);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('cancel_donation_button')),
+          );
+          await tester.enterText(
+            find.byKey(const Key('cancel_donation_reason_field')),
+            'No disponible.',
+          );
+          spyStore.setSimulateNetworkError(true);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('confirm_cancel_donation_button')),
+          );
+          expect(find.textContaining('pérdida de conexión'), findsOneWidget);
 
-        spyStore.setSimulateNetworkError(false);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('confirm_cancel_donation_button')),
-        );
-        final cancelKeys = spyStore.keysFor('cancel');
-        expect(cancelKeys.length, 2);
-        expect(cancelKeys[1], cancelKeys[0]);
-      },
-    );
-  });
+          spyStore.setSimulateNetworkError(false);
+          await tapVisible(
+            tester,
+            find.byKey(const Key('confirm_cancel_donation_button')),
+          );
+          final cancelKeys = spyStore.keysFor('cancel');
+          expect(cancelKeys.length, 2);
+          expect(cancelKeys[1], cancelKeys[0]);
+        },
+      );
+    },
+  );
 
-  group('Final Review Fixes: date picker clock clamp, chat/review RNF-12 & route ID isolation',
-      () {
+  group('Final Review Fixes: date picker clock clamp, chat/review RNF-12 & route ID isolation', () {
     testWidgets(
       'selector de fecha tras +7d no falla assertion, resetea fecha pasada y chat/reseña manejan NetworkException',
       (tester) async {
@@ -912,7 +944,10 @@ void main() {
 
         await tester.pump(const Duration(seconds: 5));
         await tester.pumpAndSettle();
-        await tapVisible(tester, find.byKey(const Key('mark_delivered_button')));
+        await tapVisible(
+          tester,
+          find.byKey(const Key('mark_delivered_button')),
+        );
 
         store.setActiveUser('usr-alondra');
         await tester.pumpAndSettle();
@@ -943,10 +978,7 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(
-          store.reviews.where((r) => r.donacionId == don.id),
-          isEmpty,
-        );
+        expect(store.reviews.where((r) => r.donacionId == don.id), isEmpty);
 
         store.setSimulateNetworkError(false);
         await tapVisible(tester, find.byKey(const Key('submit_review_button')));
@@ -954,10 +986,7 @@ void main() {
           find.text('Ya enviaste tu reseña para esta donación'),
           findsOneWidget,
         );
-        expect(
-          store.reviews.where((r) => r.donacionId == don.id).length,
-          1,
-        );
+        expect(store.reviews.where((r) => r.donacionId == don.id).length, 1);
       },
     );
 
@@ -1002,14 +1031,8 @@ void main() {
           'Lugar Donación A',
         );
         await tester.pumpAndSettle();
-        await tapVisible(
-          tester,
-          find.byKey(const Key('chat_send_button')),
-        );
-        expect(
-          find.text('El mensaje no puede estar vacío.'),
-          findsOneWidget,
-        );
+        await tapVisible(tester, find.byKey(const Key('chat_send_button')));
+        expect(find.text('El mensaje no puede estar vacío.'), findsOneWidget);
 
         // Navigate directly to donB -> no leaked errors or place text
         router.go('/donations/${donB.id}');

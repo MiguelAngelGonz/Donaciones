@@ -1,6 +1,7 @@
 import 'package:donaciones/app/theme.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
+import 'package:donaciones/core/widgets/legal_documents_sheet.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
 import 'package:donaciones/features/auth/presentation/auth_form_widgets.dart';
 import 'package:donaciones/features/intermediary/presentation/request_intermediary_sheet.dart';
@@ -64,20 +65,26 @@ class ProfileScreen extends ConsumerWidget {
                 onEdit: () => showEditProfileSheet(context, activeUser),
               ),
               const SizedBox(height: 14),
-              _TrustProfileCard(user: activeUser),
+              const LegalAndPermissionsCard(),
+              if (!store.isOnline) ...[
+                const SizedBox(height: 14),
+                _TrustProfileCard(user: activeUser),
+              ],
               const SizedBox(height: 14),
               _ReviewsCard(
                 reviews: reviews,
                 store: store,
                 formatDate: _formatDate,
               ),
-              const SizedBox(height: 14),
-              _IntermediarySectionCard(
-                user: activeUser,
-                latestRequest: latestIntermediaryRequest,
-                onRequestIntermediary: onRequestIntermediary ??
-                    () => showRequestIntermediarySheet(context),
-              ),
+              if (!store.isOnline) ...[
+                const SizedBox(height: 14),
+                _IntermediarySectionCard(
+                  user: activeUser,
+                  latestRequest: latestIntermediaryRequest,
+                  onRequestIntermediary: onRequestIntermediary ??
+                      () => showRequestIntermediarySheet(context),
+                ),
+              ],
               if (activeUser.esAdministrador) ...[
                 const SizedBox(height: 14),
                 _AdminAccessCard(
@@ -119,45 +126,53 @@ class _LoggedOutProfileView extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.person_outline,
-                    size: 52,
-                    color: theme.colorScheme.secondary,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 52,
+                        color: theme.colorScheme.secondary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No has iniciado sesión',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Inicia sesión o crea una cuenta para consultar tu perfil, tu Perfil de Confianza y tus reseñas.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: onLogin,
+                        child: const Text('Iniciar sesión'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: onRegister,
+                        child: const Text('Registrarse'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No has iniciado sesión',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Inicia sesión o crea una cuenta para consultar tu perfil, tu Perfil de Confianza y tus reseñas.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: onLogin,
-                    child: const Text('Iniciar sesión'),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: onRegister,
-                    child: const Text('Registrarse'),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 14),
+              const LegalAndPermissionsCard(),
+            ],
           ),
         ),
       ),
@@ -524,7 +539,7 @@ class _ReviewsCard extends StatelessWidget {
                     _ReviewItem(
                       review: reviews[i],
                       authorName: store.findUserById(reviews[i].autorId)?.nombreLegal ??
-                          'Miembro DonaPlus',
+                          'Miembro Komuna',
                       dateLabel: formatDate(reviews[i].fecha),
                     ),
                   ],

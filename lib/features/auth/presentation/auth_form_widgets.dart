@@ -1,5 +1,14 @@
+import 'dart:io';
+
 import 'package:donaciones/app/theme.dart';
+import 'package:donaciones/core/mock/mock_tenant_store.dart';
+import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 /// Password rule compliance breakdown for RF-01.
 class PasswordRuleStatus {
@@ -198,12 +207,25 @@ class ProfileAvatarCircle extends StatelessWidget {
     return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
   }
 
+  File? _tryResolveLocalFile() {
+    if (kIsWeb || fotoPerfil == null || !fotoPerfil!.startsWith('file://')) {
+      return null;
+    }
+    try {
+      return File.fromUri(Uri.parse(fotoPerfil!));
+    } on Object {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final option = _findAvatarOption();
     final hasCustomPhoto = fotoPerfil != null && fotoPerfil!.isNotEmpty;
+    final localFile = _tryResolveLocalFile();
 
+    final isOnlinePhoto = fotoPerfil?.startsWith('donaplus-photo:') ?? false;
     return CircleAvatar(
       radius: radius,
       backgroundColor: hasCustomPhoto
@@ -212,7 +234,46 @@ class ProfileAvatarCircle extends StatelessWidget {
       foregroundColor: hasCustomPhoto
           ? DonaPlusColors.primary
           : theme.colorScheme.onPrimary,
-      child: option != null
+      child: isOnlinePhoto
+          ? Consumer(
+              builder: (context, ref, child) {
+                final store = ref.watch(mockTenantStoreProvider);
+                final photo = fotoPerfil!;
+                final headers = store is OnlineTenantStore
+                    ? store.photoHeaders(photo)
+                    : null;
+                if (store is! OnlineTenantStore || headers == null) {
+                  return Icon(Icons.account_circle, size: radius * 1.1);
+                }
+                return ClipOval(
+                  child: Image.network(
+                    store.photoUrl(photo),
+                    headers: headers,
+                    width: radius * 2,
+                    height: radius * 2,
+                    fit: BoxFit.cover,
+                    semanticLabel: 'Fotografía de perfil',
+                    errorBuilder: (_, _, _) =>
+                        Icon(Icons.account_circle, size: radius * 1.1),
+                  ),
+                );
+              },
+            )
+          : localFile != null
+          ? ClipOval(
+              child: Image.file(
+                localFile,
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                semanticLabel: 'Fotografía de perfil',
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.account_circle,
+                  size: radius * 1.1,
+                ),
+              ),
+            )
+          : option != null
           ? Icon(option.icon, size: radius * 1.05)
           : hasCustomPhoto
           ? Icon(Icons.account_circle, size: radius * 1.1)
@@ -228,22 +289,95 @@ class ProfileAvatarCircle extends StatelessWidget {
 }
 
 /// Optional profile photo chip selector used in registration and profile edit.
-class ProfileAvatarSelector extends StatelessWidget {
+class ProfileAvatarSelector extends StatefulWidget {
   final String? selectedPhoto;
   final String previewName;
   final ValueChanged<String?> onChanged;
+  final bool showSamples;
 
   const ProfileAvatarSelector({
     super.key,
     required this.selectedPhoto,
     required this.previewName,
     required this.onChanged,
+    this.showSamples = true,
   });
+
+  @override
+  State<ProfileAvatarSelector> createState() => _ProfileAvatarSelectorState();
+}
+
+class _ProfileAvatarSelectorState extends State<ProfileAvatarSelector> {
+  bool _pickingPhoto = false;
+
+  Future<void> _pickDeviceAvatar() async {
+    if (!usesAndroidDeviceAccess) {
+      widget.onChanged('device://avatar_galeria.jpg');
+      return;
+    }
+    if (_pickingPhoto) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Tomar foto con la cámara'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Seleccionar desde galería del dispositivo'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted) return;
+      final picker = ImagePickerAndroid()..useAndroidPhotoPicker = true;
+      final photo = await picker.getImageFromSource(
+        source: source,
+        options: const ImagePickerOptions(
+          maxWidth: 1024,
+          maxHeight: 1024,
+          imageQuality: 85,
+          requestFullMetadata: false,
+        ),
+      );
+      if (photo != null && mounted) {
+        widget.onChanged(File(photo.path).uri.toString());
+      }
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'camera_access_denied' =>
+          'Permite el acceso a la cámara en los ajustes de Android o elige una foto de la galería.',
+        'no_available_camera' => 'No hay una cámara disponible.',
+        _ => 'No se pudo agregar la foto de perfil. Inténtalo de nuevo.',
+      };
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasPhoto = selectedPhoto != null && selectedPhoto!.isNotEmpty;
+    final selectedPhoto = widget.selectedPhoto;
+    final hasPhoto = selectedPhoto != null && selectedPhoto.isNotEmpty;
+    final isDevicePhoto =
+        hasPhoto &&
+        (selectedPhoto.startsWith('device://') ||
+            selectedPhoto.startsWith('file://'));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +385,9 @@ class ProfileAvatarSelector extends StatelessWidget {
         Row(
           children: [
             ProfileAvatarCircle(
-              nombreLegal: previewName.isEmpty ? 'DonaPlus' : previewName,
+              nombreLegal: widget.previewName.isEmpty
+                  ? 'Komuna'
+                  : widget.previewName,
               fotoPerfil: selectedPhoto,
               radius: 24,
             ),
@@ -274,15 +410,26 @@ class ProfileAvatarSelector extends StatelessWidget {
             ChoiceChip(
               label: const Text('Sin foto'),
               selected: !hasPhoto,
-              onSelected: (_) => onChanged(null),
+              onSelected: (_) => widget.onChanged(null),
             ),
-            for (final option in sampleProfileAvatars)
-              ChoiceChip(
-                avatar: Icon(option.icon, size: 16),
-                label: Text(option.label),
-                selected: selectedPhoto == option.path,
-                onSelected: (_) => onChanged(option.path),
-              ),
+            if (widget.showSamples)
+              for (final option in sampleProfileAvatars)
+                ChoiceChip(
+                  avatar: Icon(option.icon, size: 16),
+                  label: Text(option.label),
+                  selected: selectedPhoto == option.path,
+                  onSelected: (_) => widget.onChanged(option.path),
+                ),
+            ChoiceChip(
+              key: const Key('profile_avatar_device_photo_chip'),
+              avatar: const Icon(Icons.add_a_photo_outlined, size: 16),
+              label: const Text('Cámara o galería'),
+              selected: isDevicePhoto,
+              onSelected: _pickingPhoto ||
+                      (!widget.showSamples && !usesAndroidDeviceAccess)
+                  ? null
+                  : (_) => _pickDeviceAvatar(),
+            ),
           ],
         ),
       ],

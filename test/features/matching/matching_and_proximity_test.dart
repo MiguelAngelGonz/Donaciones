@@ -80,10 +80,7 @@ void main() {
           find.byKey(const Key('edit_pub_title_field')),
           'Silla de ruedas reforzada',
         );
-        await tapVisible(
-          tester,
-          find.byKey(const Key('edit_pub_save_button')),
-        );
+        await tapVisible(tester, find.byKey(const Key('edit_pub_save_button')));
 
         expect(
           find.textContaining(
@@ -98,10 +95,7 @@ void main() {
 
         // Recover network and save
         store.setSimulateNetworkError(false);
-        await tapVisible(
-          tester,
-          find.byKey(const Key('edit_pub_save_button')),
-        );
+        await tapVisible(tester, find.byKey(const Key('edit_pub_save_button')));
 
         expect(
           store.findPublicationById('pub-1')?.titulo,
@@ -157,10 +151,7 @@ void main() {
           find.byKey(const Key('edit_pub_title_field')),
           'Mesa de comedor de pino',
         );
-        await tapVisible(
-          tester,
-          find.byKey(const Key('edit_pub_save_button')),
-        );
+        await tapVisible(tester, find.byKey(const Key('edit_pub_save_button')));
 
         expect(
           store.findPublicationById('pub-3')?.titulo,
@@ -196,10 +187,7 @@ void main() {
         await tapVisible(tester, find.byKey(const Key('create_mode_need')));
 
         // usr-alondra is not an intermediary
-        expect(
-          find.byKey(const Key('need_intermediary_switch')),
-          findsNothing,
-        );
+        expect(find.byKey(const Key('need_intermediary_switch')), findsNothing);
 
         // Switch to usr-maria (authorized intermediary)
         store.setActiveUser('usr-maria');
@@ -271,72 +259,78 @@ void main() {
     );
   });
 
-  group('CU-20, CU-21 & CU-22: Cercanía, permiso GPS y urgencia en FeedScreen',
-      () {
-    testWidgets(
-      'CU-20 & CU-21: filtro de radio 5/10/25 km, ordenamiento por distancia y diálogo de permiso de ubicación',
-      (tester) async {
-        final (store, _) = await pumpAppAtRoute(tester, '/');
+  group(
+    'CU-20, CU-21 & CU-22: Cercanía, permiso GPS y urgencia en FeedScreen',
+    () {
+      testWidgets(
+        'CU-20 & CU-21: filtro de radio 5/10/25 km, ordenamiento por distancia y diálogo de permiso de ubicación',
+        (tester) async {
+          final (store, _) = await pumpAppAtRoute(tester, '/');
 
-        // Publish a far item in Atlixco (28.2 km)
-        await store.createItemPublication(
-          const CreateItemInput(
-            titulo: 'Estufa portátil',
-            descripcion: 'Dos quemadores',
-            categoriaId: 'cat-hogar',
-            fotografias: ['sample://mesa_comedor.jpg'],
-            cantidad: 1,
-            condicion: CondicionArticulo.usado,
-            ubicacionEtiqueta: 'Atlixco, CP 74200',
-          ),
-        );
-        await tester.pumpAndSettle();
+          // Publish a far item in Atlixco (28.2 km)
+          await store.createItemPublication(
+            const CreateItemInput(
+              titulo: 'Estufa portátil',
+              descripcion: 'Dos quemadores',
+              categoriaId: 'cat-hogar',
+              fotografias: ['sample://mesa_comedor.jpg'],
+              cantidad: 1,
+              condicion: CondicionArticulo.usado,
+              ubicacionEtiqueta: 'Atlixco, CP 74200',
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        expect(find.text('Estufa portátil'), findsOneWidget);
-        expect(find.textContaining('ubicación aproximada'), findsWidgets);
+          expect(find.text('Estufa portátil'), findsOneWidget);
+          await tapVisible(tester, find.text('Filtros'));
+          expect(
+            find.textContaining('Usando la ubicación de tu perfil'),
+            findsOneWidget,
+          );
 
-        // Tap Usar ubicación del dispositivo -> Denegar (CU-21 / RNF-08)
-        await tapVisible(
-          tester,
-          find.byKey(const Key('feed_device_location_button')),
-        );
-        await tester.tap(find.text('Denegar'));
-        await tester.pumpAndSettle();
-        expect(store.isDeviceLocationAuthorized, isFalse);
+          // Tap Usar ubicación del dispositivo -> Denegar (CU-21 / RNF-08)
+          await tapVisible(
+            tester,
+            find.byKey(const Key('feed_device_location_button')),
+          );
+          await tester.tap(find.text('Denegar'));
+          await tester.pumpAndSettle();
+          expect(store.isDeviceLocationAuthorized, isFalse);
 
-        // Tap again -> Permitir
-        await tapVisible(
-          tester,
-          find.byKey(const Key('feed_device_location_button')),
-        );
-        await tester.tap(find.text('Permitir'));
-        await tester.pumpAndSettle();
-        expect(store.isDeviceLocationAuthorized, isTrue);
+          // Tap again -> Permitir
+          await tapVisible(
+            tester,
+            find.byKey(const Key('feed_device_location_button')),
+          );
+          await tester.tap(find.text('Permitir'));
+          await tester.pumpAndSettle();
+          expect(store.isDeviceLocationAuthorized, isTrue);
 
-        // Filter <= 5 km excludes Atlixco (28.2 km)
-        await tapVisible(tester, find.byKey(const Key('feed_dist_5')));
-        expect(find.text('Estufa portátil'), findsNothing);
-        expect(find.text('Mesa de comedor para 4 personas'), findsOneWidget);
+          // Filter <= 5 km excludes Atlixco (28.2 km)
+          await tapVisible(tester, find.byKey(const Key('feed_dist_5')));
+          expect(find.text('Estufa portátil'), findsNothing);
+          expect(find.text('Mesa de comedor para 4 personas'), findsOneWidget);
 
-        // Filter <= 25 km also excludes Atlixco
-        await tapVisible(tester, find.byKey(const Key('feed_dist_25')));
-        expect(find.text('Estufa portátil'), findsNothing);
+          // Filter <= 25 km also excludes Atlixco
+          await tapVisible(tester, find.byKey(const Key('feed_dist_25')));
+          expect(find.text('Estufa portátil'), findsNothing);
 
-        // Any distance restores it, and Sort by distance puts Mesa before Estufa
-        await tapVisible(tester, find.byKey(const Key('feed_dist_all')));
-        await tapVisible(tester, find.byKey(const Key('feed_sort_distance')));
+          // Any distance restores it, and Sort by distance puts Mesa before Estufa
+          await tapVisible(tester, find.byKey(const Key('feed_dist_all')));
+          await tapVisible(tester, find.byKey(const Key('feed_sort_distance')));
 
-        expect(find.text('Estufa portátil'), findsOneWidget);
-        final mesaY =
-            tester.getTopLeft(find.text('Mesa de comedor para 4 personas')).dy;
-        final estufaY = tester.getTopLeft(find.text('Estufa portátil')).dy;
-        expect(mesaY, lessThan(estufaY));
-      },
-    );
+          expect(find.text('Estufa portátil'), findsOneWidget);
+          final mesaY = tester
+              .getTopLeft(find.text('Mesa de comedor para 4 personas'))
+              .dy;
+          final estufaY = tester.getTopLeft(find.text('Estufa portátil')).dy;
+          expect(mesaY, lessThan(estufaY));
+        },
+      );
 
-    testWidgets(
-      'CU-22: filtra y ordena Necesidades por nivel de urgencia',
-      (tester) async {
+      testWidgets('CU-22: filtra y ordena Necesidades por nivel de urgencia', (
+        tester,
+      ) async {
         final (store, _) = await pumpAppAtRoute(tester, '/');
 
         // Add a low urgency need so we have Alta, Media, Baja
@@ -354,13 +348,18 @@ void main() {
         await tester.pumpAndSettle();
 
         // Sort by urgency: Alta (pub-1) appears above Media (pub-2) and Baja
+        await tapVisible(tester, find.text('Filtros'));
         await tapVisible(tester, find.byKey(const Key('feed_sort_urgency')));
 
-        final altaY = tester.getTopLeft(find.text('Silla de ruedas plegable')).dy;
-        final mediaY =
-            tester.getTopLeft(find.text('Libros escolares de primaria')).dy;
-        final bajaY =
-            tester.getTopLeft(find.text('Cuadernos profesionales')).dy;
+        final altaY = tester
+            .getTopLeft(find.text('Silla de ruedas plegable'))
+            .dy;
+        final mediaY = tester
+            .getTopLeft(find.text('Libros escolares de primaria'))
+            .dy;
+        final bajaY = tester
+            .getTopLeft(find.text('Cuadernos profesionales'))
+            .dy;
         expect(altaY, lessThan(mediaY));
         expect(mediaY, lessThan(bajaY));
 
@@ -370,9 +369,9 @@ void main() {
         expect(find.text('Cuadernos profesionales'), findsOneWidget);
         expect(find.text('Silla de ruedas plegable'), findsNothing);
         expect(find.text('Libros escolares de primaria'), findsNothing);
-      },
-    );
-  });
+      });
+    },
+  );
 
   group('CU-17 & CU-18: Coincidencias y notificaciones internas', () {
     testWidgets(
@@ -472,7 +471,12 @@ void main() {
         await tester.tap(find.byTooltip('Cerrar'));
         await tester.pumpAndSettle();
 
-        for (final route in ['/', '/matches', '/create', '/publications/pub-3']) {
+        for (final route in [
+          '/',
+          '/matches',
+          '/create',
+          '/publications/pub-3',
+        ]) {
           router.go(route);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);

@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:donaciones/app/theme.dart';
+import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
@@ -78,6 +80,7 @@ Color categoryTintForKey(String iconKey, {required bool highContrast}) {
     'restaurant' => DonaPlusColors.accentYellow.withValues(alpha: 0.55),
     'checkroom' => DonaPlusColors.primary.withValues(alpha: 0.12),
     'chair' => DonaPlusColors.accentMint.withValues(alpha: 0.38),
+    'devices' => const Color(0xFFDBEAFE),
     _ => DonaPlusColors.surfaceLight,
   };
 }
@@ -306,6 +309,7 @@ class PublicationPhotoPlaceholder extends StatelessWidget {
     final highContrast = theme.colorScheme.outline == Colors.black;
     final isDevice = photoPath.startsWith('device://');
     final isLocalFile = !kIsWeb && photoPath.startsWith('file://');
+    final isOnlinePhoto = photoPath.startsWith('donaplus-photo:');
 
     return Container(
       width: width,
@@ -323,7 +327,32 @@ class PublicationPhotoPlaceholder extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          if (isLocalFile)
+          if (isOnlinePhoto)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final store = ref.watch(mockTenantStoreProvider);
+                    if (store is! OnlineTenantStore) {
+                      return const SizedBox.shrink();
+                    }
+                    final headers = store.photoHeaders(photoPath);
+                    if (headers == null) return const SizedBox.shrink();
+                    return Image.network(
+                      store.photoUrl(photoPath),
+                      headers: headers,
+                      fit: BoxFit.cover,
+                      semanticLabel: 'Fotografía del artículo',
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(Icons.broken_image_outlined),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            )
+          else if (isLocalFile)
             Positioned.fill(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),

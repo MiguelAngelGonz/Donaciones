@@ -91,7 +91,10 @@ class FeedFilterController extends StateNotifier<FeedFilterState> {
   }
 
   void toggleSortByUrgency() {
-    state = state.copyWith(sortByUrgency: !state.sortByUrgency);
+    state = state.copyWith(
+      sortByUrgency: !state.sortByUrgency,
+      sortByDistance: false,
+    );
   }
 
   /// Sets the proximity radius filter in kilometers (CU-20).
@@ -100,7 +103,10 @@ class FeedFilterController extends StateNotifier<FeedFilterState> {
   }
 
   void toggleSortByDistance() {
-    state = state.copyWith(sortByDistance: !state.sortByDistance);
+    state = state.copyWith(
+      sortByDistance: !state.sortByDistance,
+      sortByUrgency: false,
+    );
   }
 
   /// Clears all active filters and sort toggles (CU-19 2a).

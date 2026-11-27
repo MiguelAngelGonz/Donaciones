@@ -812,7 +812,7 @@ class _DonationTrackingScreenState
                           Expanded(
                             child: Text(
                               (counterpartPhoneShared && counterpart != null)
-                                  ? 'Teléfono de ${counterpart.nombreLegal}: ${counterpart.telefono}'
+                                  ? 'Teléfono de ${counterpart.nombreLegal}: ${store.sharedPhoneFor(donation.id, counterpart)}'
                                   : 'Teléfono oculto por privacidad (RNF-09)',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w700,

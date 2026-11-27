@@ -166,9 +166,7 @@ class _PublicationDetailScreenState
       if (!mounted) return;
       setState(() => _isWithdrawing = false);
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          content: Text('Publicación retirada correctamente.'),
-        ),
+        const SnackBar(content: Text('Publicación retirada correctamente.')),
       );
     } on NetworkException catch (e) {
       if (!mounted) return;
@@ -224,7 +222,8 @@ class _PublicationDetailScreenState
                     onAcceptProposal: _acceptProposal,
                     onRejectProposal: _rejectProposal,
                     onOpenDonation: (donationId) =>
-                        GoRouter.maybeOf(context)?.push('/donations/$donationId'),
+                        GoRouter.maybeOf(context)
+                            ?.push('/donations/$donationId'),
                     onRequestItem: () => showModalBottomSheet<void>(
                       context: context,
                       isScrollControlled: true,
@@ -333,7 +332,11 @@ class _DetailBody extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (var i = 0; i < publication.fotografias.length; i++) ...[
+                      for (
+                        var i = 0;
+                        i < publication.fotografias.length;
+                        i++
+                      ) ...[
                         if (i > 0) const SizedBox(width: 10),
                         PublicationPhotoPlaceholder(
                           photoPath: publication.fotografias[i],
@@ -454,11 +457,14 @@ class _DetailBody extends StatelessWidget {
                             ),
                           _DetailSpecChip(
                             icon: Icons.location_on_outlined,
-                            label: store.isDeviceLocationAuthorized
+                            label: distanceKm == null
+                                ? 'Ubicación aproximada'
+                                : store.isDeviceLocationAuthorized
                                 ? 'Distancia (dispositivo)'
                                 : 'Distancia aproximada',
-                            value:
-                                '${distanceKm.toStringAsFixed(1)} km · ${publication.ubicacion.etiqueta}',
+                            value: distanceKm == null
+                                ? publication.ubicacion.etiqueta
+                                : '${distanceKm.toStringAsFixed(1)} km · ${publication.ubicacion.etiqueta}',
                           ),
                         ],
                       ),
@@ -758,7 +764,9 @@ class _DetailSpecChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.colorScheme.outline),
       ),

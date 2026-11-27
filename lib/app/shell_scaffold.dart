@@ -52,7 +52,10 @@ class ShellScaffold extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const DemoTenantToolbar(),
-                _ShellHeaderBar(activeUser: activeUser),
+                _ShellHeaderBar(
+                  activeUser: activeUser,
+                  devicePostalCode: store.devicePostalCode,
+                ),
               ],
             ),
           ),
@@ -97,19 +100,25 @@ class ShellScaffold extends ConsumerWidget {
 
 class _ShellHeaderBar extends StatelessWidget {
   final UsuarioMock? activeUser;
+  final String? devicePostalCode;
 
-  const _ShellHeaderBar({required this.activeUser});
+  const _ShellHeaderBar({
+    required this.activeUser,
+    required this.devicePostalCode,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = activeUser;
     final greeting = user == null
-        ? 'DonaPlus · Sin sesión'
+        ? 'Komuna · Sin sesión'
         : 'Hola, ${user.nombreLegal.split(' ').first}';
-    final locationLabel = user == null
-        ? 'Inicia sesión o regístrate para participar'
-        : user.ubicacionAproximada.etiqueta;
+    final postalCode = devicePostalCode;
+    final locationLabel = postalCode == null
+        ? user?.ubicacionAproximada.etiqueta ??
+              'Inicia sesión o regístrate para participar'
+        : 'CP $postalCode';
 
     return Material(
       color: theme.colorScheme.primary,
@@ -143,6 +152,7 @@ class _ShellHeaderBar extends StatelessWidget {
                       Expanded(
                         child: Text(
                           locationLabel,
+                          key: const Key('shell_location_label'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(

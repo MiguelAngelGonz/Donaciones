@@ -159,6 +159,7 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
               const SizedBox(height: 14),
               ProfileAvatarSelector(
                 selectedPhoto: _selectedPhoto,
+                showSamples: !ref.watch(mockTenantStoreProvider).isOnline,
                 previewName: widget.usuario.nombreLegal,
                 onChanged: (value) => setState(() => _selectedPhoto = value),
               ),

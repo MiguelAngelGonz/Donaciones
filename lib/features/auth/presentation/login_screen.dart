@@ -173,6 +173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final online = ref.watch(mockTenantStoreProvider).isOnline;
 
     return Scaffold(
       appBar: AppBar(
@@ -198,14 +199,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Icon(
-                            Icons.volunteer_activism,
-                            size: 44,
-                            color: theme.colorScheme.secondary,
+                          Center(
+                            child: Image.asset(
+                              'assets/komuna_logo.jpeg',
+                              width: 64,
+                              height: 64,
+                              cacheWidth: 192,
+                              excludeFromSemantics: true,
+                            ),
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'Bienvenido a DonaPlus',
+                            'Bienvenido a Komuna',
                             textAlign: TextAlign.center,
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w700,
@@ -214,7 +219,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Ingresa con tu nombre de usuario o correo electrónico.',
+                            online
+                                ? 'Ingresa con el correo de tu cuenta.'
+                                : 'Ingresa con tu nombre de usuario o correo electrónico.',
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodyMedium,
                           ),
@@ -223,10 +230,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             key: const Key('login_identifier_field'),
                             controller: _identifierController,
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Nombre de usuario o correo',
-                              hintText: '@usuario o correo@ejemplo.com',
-                              prefixIcon: Icon(Icons.person_outline),
+                            keyboardType: online ? TextInputType.emailAddress : null,
+                            decoration: InputDecoration(
+                              labelText: online ? 'Correo electrónico' : 'Nombre de usuario o correo',
+                              hintText: online ? 'correo@ejemplo.com' : '@usuario o correo@ejemplo.com',
+                              prefixIcon: const Icon(Icons.person_outline),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -258,7 +266,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               tone: _errorTone,
                             ),
                           ],
-                          if (_unverifiedUserId != null) ...[
+                          if (!online && _unverifiedUserId != null) ...[
                             const SizedBox(height: 10),
                             OutlinedButton.icon(
                               onPressed: _isSubmitting
@@ -299,11 +307,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             spacing: 8,
                             runSpacing: 4,
                             children: [
-                              TextButton(
-                                onPressed: () =>
-                                    _navigateTo('/reset-password', push: true),
-                                child: const Text('¿Olvidaste tu contraseña?'),
-                              ),
+                              if (!online)
+                                TextButton(
+                                  onPressed: () =>
+                                      _navigateTo('/reset-password', push: true),
+                                  child: const Text('¿Olvidaste tu contraseña?'),
+                                ),
                               TextButton(
                                 onPressed: () =>
                                     _navigateTo('/register', push: true),

@@ -1,4 +1,5 @@
 import 'package:donaciones/app/shell_scaffold.dart';
+import 'package:donaciones/core/auth/registration_auth_options.dart';
 import 'package:donaciones/features/admin/presentation/admin_panel_screen.dart';
 import 'package:donaciones/features/auth/presentation/login_screen.dart';
 import 'package:donaciones/features/auth/presentation/register_screen.dart';
@@ -47,6 +48,10 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
             builder: (context, state) => const ProfileScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: emailConfirmationPath,
+        redirect: (_, _) => '/login',
       ),
       GoRoute(
         path: '/login',

@@ -24,11 +24,42 @@ void main() {
   }
 
   group('CU-19: Filtrar publicaciones por categoría y tipo', () {
+    testWidgets('Tecnología aparece al filtrar, donar y pedir', (tester) async {
+      await pumpFeed(tester);
+      await tapVisible(tester, find.text('Filtros'));
+      expect(find.byKey(const Key('feed_cat_cat-tecnologia')), findsOneWidget);
+
+      final publishTab = find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Publicar'),
+      );
+      await tester.tap(publishTab);
+      await tester.pumpAndSettle();
+
+      void expectTechnology(String fieldKey) {
+        final dropdown = tester.widget<DropdownButton<String>>(
+          find.descendant(
+            of: find.byKey(Key(fieldKey)),
+            matching: find.byType(DropdownButton<String>),
+          ),
+        );
+        expect(
+          dropdown.items!.map((item) => item.value),
+          contains('cat-tecnologia'),
+        );
+      }
+
+      expectTechnology('item_category_dropdown');
+      await tapVisible(tester, find.byKey(const Key('create_mode_need')));
+      expectTechnology('need_category_dropdown');
+    });
+
     testWidgets(
       'TC-CU19-01: estado inicial muestra las 4 publicaciones activas y oculta cerradas o inactivas',
       (tester) async {
         await pumpFeed(tester);
 
+        expect(find.byKey(const Key('feed_type_articulo')), findsNothing);
         expect(find.text('Publicaciones disponibles (4)'), findsOneWidget);
         expect(find.text('Silla de ruedas plegable'), findsOneWidget);
         expect(find.text('Libros escolares de primaria'), findsOneWidget);
@@ -43,6 +74,7 @@ void main() {
       'TC-CU19-02, TC-CU19-03, TC-CU19-04, TC-CU19-05, TC-CU19-06: filtra por categoría, tipo, ambos, estado vacío y Quitar filtros',
       (tester) async {
         await pumpFeed(tester);
+        await tapVisible(tester, find.text('Filtros'));
 
         // TC-CU19-02: Filter only by category Salud
         await tapVisible(tester, find.byKey(const Key('feed_cat_cat-salud')));

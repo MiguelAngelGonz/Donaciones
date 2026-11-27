@@ -1,8 +1,11 @@
 import 'package:donaciones/app/router.dart';
 import 'package:donaciones/app/theme.dart';
+import 'package:donaciones/core/auth/registration_auth_options.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
+import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/widgets/notifications_sheet.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
+import 'package:donaciones/features/auth/presentation/login_screen.dart';
 import 'package:donaciones/features/donations/presentation/donations_hub_screen.dart';
 import 'package:donaciones/features/matching/presentation/matches_screen.dart';
 import 'package:donaciones/features/profile/presentation/profile_screen.dart';
@@ -14,6 +17,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('Android email confirmation opens the sign-in screen', (tester) async {
+    final router = createAppRouter(
+      initialLocation: '$androidEmailConfirmationUrl?code=sample',
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [appRouterProvider.overrideWithValue(router)],
+      child: const DonaPlusApp(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.toString(), '/login');
+  });
+
   testWidgets(
     'DonaPlusApp renders DemoTenantToolbar, Accesibilidad chip, notifications bell, and 5 bottom tabs',
     (tester) async {
@@ -94,6 +113,40 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FeedScreen), findsOneWidget);
       expect(find.text('¿Cómo podemos ayudarte hoy?'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Header uses the authorized device postal code and restores the profile location',
+    (tester) async {
+      await tester.pumpWidget(const ProviderScope(child: DonaPlusApp()));
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(DonaPlusApp)),
+      );
+      final store = container.read(mockTenantStoreProvider);
+      final profileLocation = store.activeUser!.ubicacionAproximada.etiqueta;
+      final label = find.byKey(const Key('shell_location_label'));
+      expect(tester.widget<Text>(label).data, profileLocation);
+
+      store.setDeviceLocationAuthorized(true);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(label).data, profileLocation);
+
+      store.setDeviceLocationAuthorized(
+        true,
+        location: const UbicacionMock(
+          etiqueta: 'Ubicación del dispositivo',
+          codigoPostal: '76100',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(label).data, 'CP 76100');
+      expect(store.activeUser!.ubicacionAproximada.etiqueta, profileLocation);
+
+      store.setDeviceLocationAuthorized(false);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(label).data, profileLocation);
     },
   );
 

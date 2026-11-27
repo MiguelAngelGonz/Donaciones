@@ -172,6 +172,35 @@ void main() {
         expect(find.text('Solicitar rol de intermediario'), findsNothing);
       },
     );
+
+    testWidgets(
+      'CU-40 & CU-41: permite adjuntar foto de respaldo desde cámara/galería del dispositivo',
+      (tester) async {
+        final (store, _) = await pumpAppAtRoute(tester, '/profile');
+        store.setActiveUser('usr-diego');
+        await tester.pumpAndSettle();
+
+        await tapVisible(tester, find.text('Solicitar rol de intermediario'));
+        await enterTextAndSettle(
+          tester,
+          find.byKey(const Key('intermediary_organization_field')),
+          'Brigada Comunitaria BUAP',
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const Key('intermediary_doc_device_photo')),
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const Key('intermediary_submit_button')),
+        );
+
+        expect(find.textContaining('Solicitud enviada'), findsOneWidget);
+        final createdReq = store.intermediaryRequests.last;
+        expect(createdReq.documentoNombre, 'constancia_camara_dispositivo.jpg');
+        expect(createdReq.documentoBytesSimulados, 942080);
+      },
+    );
   });
 
   group('CU-42 a CU-45: Panel de Administración - Intermediarios', () {
@@ -428,10 +457,10 @@ void main() {
           find.byKey(const Key('admin_tab_categories')),
         );
 
-        // Verify all 6 seed categories are listed (5 active + 1 inactive)
+        // Verify all 7 seed categories are listed (6 active + 1 inactive).
         expect(find.text('Salud'), findsOneWidget);
         expect(find.text('Electrónica antigua'), findsOneWidget);
-        expect(find.text('Activa'), findsNWidgets(5));
+        expect(find.text('Activa'), findsNWidgets(6));
         expect(find.text('Inactiva'), findsOneWidget);
 
         // CU-49 3a: empty name rejected
@@ -443,7 +472,7 @@ void main() {
           find.text('El nombre de la categoría es obligatorio.'),
           findsOneWidget,
         );
-        expect(store.categories.length, 6);
+        expect(store.categories.length, 7);
 
         // CU-49: duplicate case-insensitive name rejected
         await enterTextAndSettle(
@@ -459,7 +488,7 @@ void main() {
           find.text('Ya existe una categoría con ese nombre.'),
           findsOneWidget,
         );
-        expect(store.categories.length, 6);
+        expect(store.categories.length, 7);
 
         // RNF-12: network error on create
         await enterTextAndSettle(
@@ -473,7 +502,7 @@ void main() {
           find.byKey(const Key('admin_create_category_button')),
         );
         expect(find.textContaining('pérdida de conexión'), findsOneWidget);
-        expect(store.categories.length, 6);
+        expect(store.categories.length, 7);
 
         // CU-49: create valid category
         store.setSimulateNetworkError(false);
@@ -481,7 +510,7 @@ void main() {
           tester,
           find.byKey(const Key('admin_create_category_button')),
         );
-        expect(store.categories.length, 7);
+        expect(store.categories.length, 8);
         final createdCat = store.categories.last;
         expect(createdCat.nombre, 'Tecnología Escolar');
         expect(createdCat.activa, isTrue);

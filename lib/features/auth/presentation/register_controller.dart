@@ -288,6 +288,7 @@ class RegisterController extends StateNotifier<RegisterState> {
           avisoPrivacidadAceptado: true,
         ),
       );
+      if (!mounted) return null;
       state = state.copyWith(
         isSubmitting: false,
         registeredUser: user,
@@ -295,18 +296,21 @@ class RegisterController extends StateNotifier<RegisterState> {
         unverifiedLoginBlockedMessage: null,
       );
       return user;
-    } on DuplicateUsernameException catch (e) {
+    } catch (error) {
+      if (!mounted) return null;
+      final message = switch (error) {
+        DuplicateUsernameException(:final message) => message,
+        ValidationException(:final message) => message,
+        NetworkException(:final message) => message,
+        _ => 'No se pudo completar el registro. Inténtalo de nuevo.',
+      };
       state = state.copyWith(
         isSubmitting: false,
-        usernameError: e.message,
-        submissionError: e.message,
+        usernameError: error is DuplicateUsernameException
+            ? message
+            : state.usernameError,
+        submissionError: message,
       );
-      return null;
-    } on ValidationException catch (e) {
-      state = state.copyWith(isSubmitting: false, submissionError: e.message);
-      return null;
-    } on NetworkException catch (e) {
-      state = state.copyWith(isSubmitting: false, submissionError: e.message);
       return null;
     }
   }

@@ -1,4 +1,5 @@
 import 'package:donaciones/app/theme.dart';
+import 'package:donaciones/core/location/android_device_location.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/widgets/trust_badge_chip.dart';
@@ -32,7 +33,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Autorizar ubicación del dispositivo'),
         content: const Text(
-          '¿Deseas permitir que DonaPlus utilice la ubicación aproximada de tu dispositivo para calcular las distancias en kilómetros? (CU-21 / RNF-08)',
+          '¿Permites que Komuna use la ubicación aproximada de tu dispositivo '
+          'para mostrar el código postal y calcular distancias?',
         ),
         actions: [
           TextButton(
@@ -69,7 +71,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       if (!mounted) return;
       if (permission == LocationPermission.deniedForever) {
         _showLocationMessage(
-          'Puedes habilitar el permiso de ubicación de DonaPlus en los ajustes de Android.',
+          'Puedes habilitar el permiso de ubicación de Komuna en los ajustes de Android.',
           action: SnackBarAction(
             label: 'Ajustes',
             onPressed: () => locator.openAppSettings(),
@@ -84,21 +86,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         );
         return;
       }
-      final position = await locator.getCurrentPosition(
-        locationSettings: AndroidSettings(
-          accuracy: LocationAccuracy.low,
-          timeLimit: const Duration(seconds: 15),
-        ),
-      );
+      final location = await readAndroidDeviceLocation(locator);
       if (!mounted) return;
-      store.setDeviceLocationAuthorized(
-        true,
-        location: UbicacionMock(
-          etiqueta: 'Ubicación del dispositivo',
-          latitud: position.latitude,
-          longitud: position.longitude,
-        ),
-      );
+      store.setDeviceLocationAuthorized(true, location: location);
     } on LocationServiceDisabledException {
       if (mounted) {
         _showLocationMessage(
@@ -135,8 +125,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       type: filterState.selectedType,
       urgency: filterState.selectedUrgency,
       sortByUrgency: filterState.sortByUrgency,
-      maxDistanceKm: filterState.maxDistanceKm,
-      sortByDistance: filterState.sortByDistance,
+      maxDistanceKm: store.canFilterByDistance
+          ? filterState.maxDistanceKm
+          : null,
+      sortByDistance: store.canFilterByDistance && filterState.sortByDistance,
     );
     final activeUser = store.activeUser;
 
@@ -157,139 +149,186 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
+                ExpansionTile(
+                  key: const PageStorageKey('feed_filters_panel'),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  collapsedShape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  collapsedBackgroundColor:
+                      theme.colorScheme.surfaceContainerLow,
+                  backgroundColor: theme.colorScheme.surfaceContainerLow,
+                  leading: const Icon(Icons.tune),
+                  title: Text(
+                    filterState.hasActiveFilters
+                        ? 'Filtros activos'
+                        : 'Filtros',
+                  ),
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Categorías',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Categorías',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              key: const Key('feed_clear_filters_button'),
+                              onPressed: filterController.clearFilters,
+                              icon: const Icon(
+                                Icons.filter_alt_off_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('Quitar filtros'),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                    TextButton.icon(
-                      key: const Key('feed_clear_filters_button'),
-                      onPressed: filterController.clearFilters,
-                      icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-                      label: const Text('Quitar filtros'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _CategoryFilterTile(
-                        key: const Key('feed_cat_all'),
-                        label: 'Todas',
-                        icon: Icons.apps_outlined,
-                        selected: filterState.selectedCategoryId == null,
-                        backgroundTint: highContrast
-                            ? Colors.white
-                            : DonaPlusColors.surfaceLight,
-                        onTap: () => filterController.selectCategory(null),
-                      ),
-                      for (final category in categories) ...[
-                        const SizedBox(width: 8),
-                        _CategoryFilterTile(
-                          key: Key('feed_cat_${category.id}'),
-                          label: category.nombre,
-                          icon: iconForCategoryKey(category.iconoClave),
-                          selected:
-                              filterState.selectedCategoryId == category.id,
-                          backgroundTint: categoryTintForKey(
-                            category.iconoClave,
-                            highContrast: highContrast,
+                        const SizedBox(height: 6),
+                        SingleChildScrollView(
+                          key: const PageStorageKey('feed_categories_scroll'),
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _CategoryFilterTile(
+                                key: const Key('feed_cat_all'),
+                                label: 'Todas',
+                                icon: Icons.apps_outlined,
+                                selected:
+                                    filterState.selectedCategoryId == null,
+                                backgroundTint: highContrast
+                                    ? Colors.white
+                                    : DonaPlusColors.surfaceLight,
+                                onTap: () =>
+                                    filterController.selectCategory(null),
+                              ),
+                              for (final category in categories) ...[
+                                const SizedBox(width: 8),
+                                _CategoryFilterTile(
+                                  key: Key('feed_cat_${category.id}'),
+                                  label: category.nombre,
+                                  icon: iconForCategoryKey(category.iconoClave),
+                                  selected:
+                                      filterState.selectedCategoryId ==
+                                      category.id,
+                                  backgroundTint: categoryTintForKey(
+                                    category.iconoClave,
+                                    highContrast: highContrast,
+                                  ),
+                                  onTap: () => filterController.selectCategory(
+                                    category.id,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          onTap: () =>
-                              filterController.selectCategory(category.id),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Tipo de publicación',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              key: const Key('feed_type_all'),
+                              label: const Text('Todos'),
+                              selected: filterState.selectedType == null,
+                              onSelected: (_) =>
+                                  filterController.selectType(null),
+                            ),
+                            ChoiceChip(
+                              key: const Key('feed_type_necesidad'),
+                              label: const Text('Necesidades'),
+                              selected:
+                                  filterState.selectedType ==
+                                  TipoPublicacion.necesidad,
+                              onSelected: (_) => filterController.selectType(
+                                TipoPublicacion.necesidad,
+                              ),
+                            ),
+                            ChoiceChip(
+                              key: const Key('feed_type_articulo'),
+                              label: const Text('Artículos'),
+                              selected:
+                                  filterState.selectedType ==
+                                  TipoPublicacion.articulo,
+                              onSelected: (_) => filterController.selectType(
+                                TipoPublicacion.articulo,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _ProximityControlsCard(
+                          isAuthorized: store.isDeviceLocationAuthorized,
+                          canFilterByDistance: store.canFilterByDistance,
+                          registeredLocationLabel:
+                              activeUser?.ubicacionAproximada.etiqueta ?? '',
+                          maxDistanceKm: filterState.maxDistanceKm,
+                          sortByDistance: filterState.sortByDistance,
+                          onToggleDeviceLocation:
+                              _requestingLocation ||
+                                  (store.isOnline && !usesAndroidDeviceAccess)
+                              ? null
+                              : () => _handleDeviceLocationToggle(store),
+                          onSelectMaxDistance:
+                              filterController.selectMaxDistance,
+                          onToggleSortDistance:
+                              filterController.toggleSortByDistance,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Urgencia',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              key: const Key('feed_urgency_all'),
+                              label: const Text('Todas las urgencias'),
+                              selected: filterState.selectedUrgency == null,
+                              onSelected: (_) =>
+                                  filterController.selectUrgency(null),
+                            ),
+                            for (final urg in Urgencia.values)
+                              ChoiceChip(
+                                key: Key('feed_urgency_${urg.name}'),
+                                label: Text(labelForUrgencia(urg)),
+                                selected: filterState.selectedUrgency == urg,
+                                onSelected: (_) =>
+                                    filterController.selectUrgency(urg),
+                              ),
+                            FilterChip(
+                              key: const Key('feed_sort_urgency'),
+                              avatar: const Icon(Icons.sort, size: 16),
+                              label: const Text('Ordenar por urgencia'),
+                              selected: filterState.sortByUrgency,
+                              onSelected: (_) =>
+                                  filterController.toggleSortByUrgency(),
+                            ),
+                          ],
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Tipo de publicación',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ChoiceChip(
-                      key: const Key('feed_type_all'),
-                      label: const Text('Todos'),
-                      selected: filterState.selectedType == null,
-                      onSelected: (_) => filterController.selectType(null),
-                    ),
-                    ChoiceChip(
-                      key: const Key('feed_type_necesidad'),
-                      label: const Text('Necesidades'),
-                      selected:
-                          filterState.selectedType == TipoPublicacion.necesidad,
-                      onSelected: (_) =>
-                          filterController.selectType(TipoPublicacion.necesidad),
-                    ),
-                    ChoiceChip(
-                      key: const Key('feed_type_articulo'),
-                      label: const Text('Artículos'),
-                      selected:
-                          filterState.selectedType == TipoPublicacion.articulo,
-                      onSelected: (_) =>
-                          filterController.selectType(TipoPublicacion.articulo),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _ProximityControlsCard(
-                  isAuthorized: store.isDeviceLocationAuthorized,
-                  registeredLocationLabel:
-                      activeUser?.ubicacionAproximada.etiqueta ??
-                      'Col. Centro, CP 72000',
-                  maxDistanceKm: filterState.maxDistanceKm,
-                  sortByDistance: filterState.sortByDistance,
-                  onToggleDeviceLocation: _requestingLocation
-                      ? null
-                      : () => _handleDeviceLocationToggle(store),
-                  onSelectMaxDistance: filterController.selectMaxDistance,
-                  onToggleSortDistance: filterController.toggleSortByDistance,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Urgencia de necesidades (CU-22)',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ChoiceChip(
-                      key: const Key('feed_urgency_all'),
-                      label: const Text('Todas las urgencias'),
-                      selected: filterState.selectedUrgency == null,
-                      onSelected: (_) => filterController.selectUrgency(null),
-                    ),
-                    for (final urg in Urgencia.values)
-                      ChoiceChip(
-                        key: Key('feed_urgency_${urg.name}'),
-                        label: Text(labelForUrgencia(urg)),
-                        selected: filterState.selectedUrgency == urg,
-                        onSelected: (_) => filterController.selectUrgency(urg),
-                      ),
-                    FilterChip(
-                      key: const Key('feed_sort_urgency'),
-                      avatar: const Icon(Icons.sort, size: 16),
-                      label: const Text('Ordenar por urgencia'),
-                      selected: filterState.sortByUrgency,
-                      onSelected: (_) => filterController.toggleSortByUrgency(),
                     ),
                   ],
                 ),
@@ -312,7 +351,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                       author: store.findUserById(pub.autorId),
                       distanceKm: store.getDistanceForPublication(pub),
                       onTap: () =>
-                          GoRouter.maybeOf(context)?.push('/publications/${pub.id}'),
+                          GoRouter.maybeOf(context)
+                              ?.push('/publications/${pub.id}'),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -346,7 +386,9 @@ class _CategoryFilterTile extends StatelessWidget {
     final theme = Theme.of(context);
     final highContrast = theme.colorScheme.outline == Colors.black;
     final bgColor = selected
-        ? (highContrast ? DonaPlusColors.accentYellow : theme.colorScheme.primary)
+        ? (highContrast
+              ? DonaPlusColors.accentYellow
+              : theme.colorScheme.primary)
         : backgroundTint;
     final fgColor = selected
         ? (highContrast ? Colors.black : Colors.white)
@@ -395,6 +437,7 @@ class _CategoryFilterTile extends StatelessWidget {
 
 class _ProximityControlsCard extends StatelessWidget {
   final bool isAuthorized;
+  final bool canFilterByDistance;
   final String registeredLocationLabel;
   final double? maxDistanceKm;
   final bool sortByDistance;
@@ -404,6 +447,7 @@ class _ProximityControlsCard extends StatelessWidget {
 
   const _ProximityControlsCard({
     required this.isAuthorized,
+    required this.canFilterByDistance,
     required this.registeredLocationLabel,
     required this.maxDistanceKm,
     required this.sortByDistance,
@@ -433,7 +477,7 @@ class _ProximityControlsCard extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
                 Text(
-                  'Cercanía (CU-20 / CU-21)',
+                  'Distancia',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -462,9 +506,11 @@ class _ProximityControlsCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              isAuthorized
-                  ? 'Calculando distancias con la ubicación aproximada del dispositivo.'
-                  : 'Calculando distancias con la ubicación aproximada registrada ($registeredLocationLabel).',
+              !canFilterByDistance
+                  ? 'Activa la ubicación o revisa el código postal de tu perfil.'
+                  : isAuthorized
+                  ? 'Usando la ubicación del dispositivo.'
+                  : 'Usando la ubicación de tu perfil ($registeredLocationLabel).',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -482,26 +528,34 @@ class _ProximityControlsCard extends StatelessWidget {
                   key: const Key('feed_dist_5'),
                   label: const Text('≤ 5 km'),
                   selected: maxDistanceKm == 5.0,
-                  onSelected: (_) => onSelectMaxDistance(5.0),
+                  onSelected: canFilterByDistance
+                      ? (_) => onSelectMaxDistance(5.0)
+                      : null,
                 ),
                 ChoiceChip(
                   key: const Key('feed_dist_10'),
                   label: const Text('≤ 10 km'),
                   selected: maxDistanceKm == 10.0,
-                  onSelected: (_) => onSelectMaxDistance(10.0),
+                  onSelected: canFilterByDistance
+                      ? (_) => onSelectMaxDistance(10.0)
+                      : null,
                 ),
                 ChoiceChip(
                   key: const Key('feed_dist_25'),
                   label: const Text('≤ 25 km'),
                   selected: maxDistanceKm == 25.0,
-                  onSelected: (_) => onSelectMaxDistance(25.0),
+                  onSelected: canFilterByDistance
+                      ? (_) => onSelectMaxDistance(25.0)
+                      : null,
                 ),
                 FilterChip(
                   key: const Key('feed_sort_distance'),
                   avatar: const Icon(Icons.near_me_outlined, size: 16),
                   label: const Text('Ordenar por distancia'),
                   selected: sortByDistance,
-                  onSelected: (_) => onToggleSortDistance(),
+                  onSelected: canFilterByDistance
+                      ? (_) => onToggleSortDistance()
+                      : null,
                 ),
               ],
             ),
@@ -556,7 +610,7 @@ class _PublicationFeedCard extends StatelessWidget {
   final PublicacionMock publication;
   final CategoriaMock? category;
   final UsuarioMock? author;
-  final double distanceKm;
+  final double? distanceKm;
   final VoidCallback onTap;
 
   const _PublicationFeedCard({
@@ -655,7 +709,9 @@ class _PublicationFeedCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
-                          '${distanceKm.toStringAsFixed(1)} km · ${publication.ubicacion.etiqueta}',
+                          distanceKm == null
+                              ? publication.ubicacion.etiqueta
+                              : '${distanceKm!.toStringAsFixed(1)} km · ${publication.ubicacion.etiqueta}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),

@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:donaciones/core/models/domain_exceptions.dart';
@@ -6,6 +9,9 @@ import 'package:donaciones/core/models/domain_models.dart';
 import 'package:donaciones/core/models/dto_inputs.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase/supabase.dart' as sb;
+
+part 'online_tenant_store.dart';
 
 /// Reactive Riverpod provider exposing the shared in-memory [MockTenantStore].
 final mockTenantStoreProvider = ChangeNotifierProvider<MockTenantStore>(
@@ -77,9 +83,18 @@ class MockTenantStore extends ChangeNotifier {
   int _notifSeq = 0;
   int _tokenSeq = 0;
 
-  MockTenantStore() {
-    resetToSeed();
+  MockTenantStore({bool seed = true}) {
+    if (seed) {
+      resetToSeed();
+    } else {
+      _currentTime = DateTime.now();
+    }
   }
+
+  bool get isOnline => false;
+
+  String sharedPhoneFor(String donationId, UsuarioMock counterpart) =>
+      counterpart.telefono;
 
   // ---------------------------------------------------------------------------
   // Read-only collection getters
@@ -130,6 +145,7 @@ class MockTenantStore extends ChangeNotifier {
   }
 
   bool get isDeviceLocationAuthorized => _deviceLocation != null;
+  String? get devicePostalCode => _deviceLocation?.codigoPostal;
 
   void setDeviceLocationAuthorized(bool authorized, {UbicacionMock? location}) {
     _deviceLocation = authorized ? location ?? _simulatedDeviceLocation : null;
@@ -332,6 +348,12 @@ class MockTenantStore extends ChangeNotifier {
         activa: true,
       ),
       CategoriaMock(
+        id: 'cat-tecnologia',
+        nombre: 'Tecnología',
+        iconoClave: 'devices',
+        activa: true,
+      ),
+      CategoriaMock(
         id: 'cat-inactiva',
         nombre: 'Electrónica antigua',
         iconoClave: 'devices',
@@ -346,8 +368,7 @@ class MockTenantStore extends ChangeNotifier {
         autorId: 'usr-maria',
         categoriaId: 'cat-salud',
         titulo: 'Silla de ruedas plegable',
-        descripcion:
-            'Silla de ruedas en buen estado disponible para una persona adulta que la necesite.',
+        descripcion: 'Silla de ruedas en buen estado disponible para una persona adulta que la necesite.',
         estado: EstadoPublicacion.activa,
         ubicacion: const UbicacionMock(
           etiqueta: 'Col. La Paz, CP 72160',
@@ -367,8 +388,7 @@ class MockTenantStore extends ChangeNotifier {
         autorId: 'usr-diego',
         categoriaId: 'cat-educacion',
         titulo: 'Libros escolares de primaria',
-        descripcion:
-            'Se necesitan libros de texto y cuadernos para alumnos de primaria.',
+        descripcion: 'Se necesitan libros de texto y cuadernos para alumnos de primaria.',
         estado: EstadoPublicacion.activa,
         ubicacion: const UbicacionMock(
           etiqueta: 'Col. San Manuel, CP 72570',
@@ -387,8 +407,7 @@ class MockTenantStore extends ChangeNotifier {
         autorId: 'usr-maria',
         categoriaId: 'cat-hogar',
         titulo: 'Mesa de comedor para 4 personas',
-        descripcion:
-            'Mesa de madera firme y cuidada, ideal para departamento o casa pequeña.',
+        descripcion: 'Mesa de madera firme y cuidada, ideal para departamento o casa pequeña.',
         estado: EstadoPublicacion.activa,
         ubicacion: const UbicacionMock(
           etiqueta: 'Col. La Paz, CP 72160',
@@ -418,7 +437,9 @@ class MockTenantStore extends ChangeNotifier {
           latitud: 19.0297,
           longitud: -98.2063,
         ),
-        fechaPublicacion: _seedReferenceTime.subtract(const Duration(hours: 12)),
+        fechaPublicacion: _seedReferenceTime.subtract(
+          const Duration(hours: 12),
+        ),
         cantidad: 1,
         condicion: CondicionArticulo.nuevo,
         fotografias: const ['sample://chaqueta_invierno_1.jpg'],
@@ -429,8 +450,7 @@ class MockTenantStore extends ChangeNotifier {
         autorId: 'usr-alondra',
         categoriaId: 'cat-educacion',
         titulo: 'Mochila escolar reforzada',
-        descripcion:
-            'Mochila amplia con compartimentos para útiles escolares.',
+        descripcion: 'Mochila amplia con compartimentos para útiles escolares.',
         estado: EstadoPublicacion.cerrada,
         ubicacion: const UbicacionMock(
           etiqueta: 'Col. Centro, CP 72000',
@@ -578,7 +598,9 @@ class MockTenantStore extends ChangeNotifier {
       throw const ValidationException('Ingresa un nombre de usuario válido.');
     }
     if (input.nombreLegal.trim().isEmpty) {
-      throw const ValidationException('El nombre legal completo es obligatorio.');
+      throw const ValidationException(
+        'El nombre legal completo es obligatorio.',
+      );
     }
 
     final cleanEmail = input.correo.trim();
@@ -888,7 +910,9 @@ class MockTenantStore extends ChangeNotifier {
     return List.unmodifiable(_sampleItemPhotos);
   }
 
-  double getDistanceForPublication(PublicacionMock publication) {
+  bool get canFilterByDistance => true;
+
+  double? getDistanceForPublication(PublicacionMock publication) {
     final deviceLocation = _deviceLocation;
     if (deviceLocation != null) {
       return deviceLocation.distanceKmTo(publication.ubicacion);
@@ -899,6 +923,11 @@ class MockTenantStore extends ChangeNotifier {
     }
     return user.ubicacionAproximada.distanceKmTo(publication.ubicacion);
   }
+
+  double? _distanceBetweenPublications(
+    PublicacionMock first,
+    PublicacionMock second,
+  ) => first.ubicacion.distanceKmTo(second.ubicacion);
 
   Future<PublicacionMock> createNeedPublication(CreateNeedInput input) async {
     _ensureNetworkAvailable();
@@ -1052,10 +1081,7 @@ class MockTenantStore extends ChangeNotifier {
     final actor = _requireAuthenticatedUser(
       'Debes iniciar sesión para retirar una publicación.',
     );
-    final idx = _findEditablePublicationIndex(
-      publicationId,
-      actorId: actor.id,
-    );
+    final idx = _findEditablePublicationIndex(publicationId, actorId: actor.id);
 
     _withdrawPublicationAtIndex(
       idx,
@@ -1078,31 +1104,34 @@ class MockTenantStore extends ChangeNotifier {
       if (type != null && p.tipo != type) return false;
       if (urgency != null && p.urgencia != urgency) return false;
       if (maxDistanceKm != null &&
-          getDistanceForPublication(p) > maxDistanceKm) {
+          (getDistanceForPublication(p) ?? double.infinity) > maxDistanceKm) {
         return false;
       }
       return true;
     }).toList();
 
-    if (sortByUrgency) {
+    if (sortByUrgency || sortByDistance) {
+      final distances = sortByDistance
+          ? {
+              for (final publication in filtered)
+                publication.id: getDistanceForPublication(publication),
+            }
+          : const <String, double?>{};
       filtered.sort((a, b) {
-        final rankA = a.urgencia?.index ?? 3;
-        final rankB = b.urgencia?.index ?? 3;
-        final urgencyCmp = rankA.compareTo(rankB);
-        if (urgencyCmp != 0) return urgencyCmp;
+        if (sortByUrgency) {
+          final urgency = (a.urgencia?.index ?? 3).compareTo(
+            b.urgencia?.index ?? 3,
+          );
+          if (urgency != 0) return urgency;
+        }
         if (sortByDistance) {
-          return getDistanceForPublication(
-            a,
-          ).compareTo(getDistanceForPublication(b));
+          final distance = (distances[a.id] ?? double.infinity).compareTo(
+            distances[b.id] ?? double.infinity,
+          );
+          if (distance != 0) return distance;
         }
         return b.fechaPublicacion.compareTo(a.fechaPublicacion);
       });
-    } else if (sortByDistance) {
-      filtered.sort(
-        (a, b) => getDistanceForPublication(
-          a,
-        ).compareTo(getDistanceForPublication(b)),
-      );
     }
 
     return List.unmodifiable(filtered);
@@ -1139,7 +1168,7 @@ class MockTenantStore extends ChangeNotifier {
             articuloId: item.id,
             categoriaId: need.categoriaId,
             urgencia: need.urgencia ?? Urgencia.baja,
-            distanciaKm: mine.ubicacion.distanceKmTo(other.ubicacion),
+            distanciaKm: _distanceBetweenPublications(mine, other),
             caracteristicasCumplidas: List.unmodifiable(fulfilled),
           ),
         );
@@ -1149,7 +1178,9 @@ class MockTenantStore extends ChangeNotifier {
     matches.sort((a, b) {
       final urgencyCmp = a.urgencia.index.compareTo(b.urgencia.index);
       if (urgencyCmp != 0) return urgencyCmp;
-      return a.distanciaKm.compareTo(b.distanciaKm);
+      return (a.distanciaKm ?? double.infinity).compareTo(
+        b.distanciaKm ?? double.infinity,
+      );
     });
     return List.unmodifiable(matches);
   }
@@ -1160,10 +1191,17 @@ class MockTenantStore extends ChangeNotifier {
     );
   }
 
-  void markNotificationAsRead(String notificationId) {
-    final idx = _notifications.indexWhere((n) => n.id == notificationId);
-    if (idx == -1) return;
-    _notifications[idx] = _notifications[idx].copyWith(leida: true);
+  Future<void> markNotificationAsRead(String notificationId) =>
+      markNotificationsAsRead([notificationId]);
+
+  Future<void> markNotificationsAsRead(List<String> ids) async {
+    final selected = ids.toSet();
+    for (var index = 0; index < _notifications.length; index++) {
+      final notification = _notifications[index];
+      if (selected.contains(notification.id) && !notification.leida) {
+        _notifications[index] = notification.copyWith(leida: true);
+      }
+    }
     notifyListeners();
   }
 
@@ -1204,7 +1242,9 @@ class MockTenantStore extends ChangeNotifier {
       throw const ValidationException('Este artículo ya no está activo.');
     }
     if (senderId == pub.autorId) {
-      throw const ValidationException('No puedes solicitar tu propio artículo.');
+      throw const ValidationException(
+        'No puedes solicitar tu propio artículo.',
+      );
     }
     final sender = findUserById(senderId);
     if (sender == null) {
@@ -1422,8 +1462,9 @@ class MockTenantStore extends ChangeNotifier {
     final isArticle = pub.tipo == TipoPublicacion.articulo;
     final donanteId = isArticle ? pub.autorId : proposal.remitenteId;
     final donatarioId = isArticle ? proposal.remitenteId : pub.autorId;
-    final intermediarioId =
-        (!isArticle && pub.gestionadaPorIntermediario) ? pub.autorId : null;
+    final intermediarioId = (!isArticle && pub.gestionadaPorIntermediario)
+        ? pub.autorId
+        : null;
 
     _proposals[propIdx] = proposal.copyWith(estado: EstadoPropuesta.aceptada);
     _publications[pubIdx] = pub.copyWith(estado: EstadoPublicacion.reservada);
@@ -1529,8 +1570,7 @@ class MockTenantStore extends ChangeNotifier {
       destinatarioId: proposal.remitenteId,
       publicacionId: pub.id,
       tipo: TipoNotificacion.propuestaRechazada,
-      mensaje:
-          'Tu propuesta para "${pub.titulo}" fue rechazada.$reasonSuffix',
+      mensaje: 'Tu propuesta para "${pub.titulo}" fue rechazada.$reasonSuffix',
     );
     _emitNotification(
       destinatarioId: pub.autorId,
@@ -1648,8 +1688,7 @@ class MockTenantStore extends ChangeNotifier {
       publicacionId: updated.publicacionId,
       donacionId: updated.id,
       tipo: TipoNotificacion.cambioEstadoDonacion,
-      mensaje:
-          'El donante marcó la entrega como realizada. Por favor confirma la recepción.',
+      mensaje: 'El donante marcó la entrega como realizada. Por favor confirma la recepción.',
     );
     notifyListeners();
     return updated;
@@ -1934,26 +1973,28 @@ class MockTenantStore extends ChangeNotifier {
     PapelDonacion? role,
     EstadoDonacion? finalState,
   }) {
-    final filtered = _donations.where((d) {
-      final isTerminal =
-          d.estado == EstadoDonacion.finalizada ||
-          d.estado == EstadoDonacion.cancelada;
-      if (!isTerminal) return false;
-      if (finalState != null && d.estado != finalState) return false;
-      switch (role) {
-        case PapelDonacion.donante:
-          return d.donanteId == userId;
-        case PapelDonacion.donatario:
-          return d.donatarioId == userId;
-        case null:
-          return d.donanteId == userId || d.donatarioId == userId;
-      }
-    }).toList()
-      ..sort((a, b) {
-        final dateA = a.fechaFinalizacion ?? a.historialCambios.last.fechaHora;
-        final dateB = b.fechaFinalizacion ?? b.historialCambios.last.fechaHora;
-        return dateB.compareTo(dateA);
-      });
+    final filtered =
+        _donations.where((d) {
+          final isTerminal =
+              d.estado == EstadoDonacion.finalizada ||
+              d.estado == EstadoDonacion.cancelada;
+          if (!isTerminal) return false;
+          if (finalState != null && d.estado != finalState) return false;
+          switch (role) {
+            case PapelDonacion.donante:
+              return d.donanteId == userId;
+            case PapelDonacion.donatario:
+              return d.donatarioId == userId;
+            case null:
+              return d.donanteId == userId || d.donatarioId == userId;
+          }
+        }).toList()..sort((a, b) {
+          final dateA =
+              a.fechaFinalizacion ?? a.historialCambios.last.fechaHora;
+          final dateB =
+              b.fechaFinalizacion ?? b.historialCambios.last.fechaHora;
+          return dateB.compareTo(dateA);
+        });
     return List.unmodifiable(filtered);
   }
 
@@ -1977,8 +2018,7 @@ class MockTenantStore extends ChangeNotifier {
       );
     }
     if (_intermediaryRequests.any(
-      (r) =>
-          r.usuarioId == user.id && r.estado == EstadoSolicitudRol.pendiente,
+      (r) => r.usuarioId == user.id && r.estado == EstadoSolicitudRol.pendiente,
     )) {
       throw const ValidationException(
         'Ya tienes una solicitud de rol pendiente.',
@@ -2115,8 +2155,7 @@ class MockTenantStore extends ChangeNotifier {
           pub.estado == EstadoPublicacion.activa) {
         _withdrawPublicationAtIndex(
           i,
-          rejectionReason:
-              'El rol de intermediario del autor fue revocado por administración.',
+          rejectionReason: 'El rol de intermediario del autor fue revocado por administración.',
         );
       }
     }
@@ -2388,7 +2427,10 @@ class MockTenantStore extends ChangeNotifier {
       );
     }
 
-    final hash = normalized.codeUnits.fold<int>(0, (a, b) => (a * 31 + b) % 997);
+    final hash = normalized.codeUnits.fold<int>(
+      0,
+      (a, b) => (a * 31 + b) % 997,
+    );
     final km = double.parse((1.5 + (hash % 180) / 10.0).toStringAsFixed(1));
     final latOffset = km / 111.32;
     return UbicacionMock(
@@ -2631,7 +2673,9 @@ class MockTenantStore extends ChangeNotifier {
           c.nombre.trim().toLowerCase() == cleanName.toLowerCase(),
     );
     if (duplicated) {
-      throw const ValidationException('Ya existe una categoría con ese nombre.');
+      throw const ValidationException(
+        'Ya existe una categoría con ese nombre.',
+      );
     }
     return cleanName;
   }

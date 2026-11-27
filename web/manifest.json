@@ -1,6 +1,6 @@
 {
-    "name": "donaciones",
-    "short_name": "donaciones",
+    "name": "Komuna",
+    "short_name": "Komuna",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
