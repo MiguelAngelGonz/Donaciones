@@ -27,6 +27,7 @@ class _SimulatedDocumentOption {
   final int bytes;
   final String sizeLabel;
   final bool isValidationTestOption;
+  final Uint8List? data;
 
   const _SimulatedDocumentOption({
     required this.chipKey,
@@ -34,6 +35,7 @@ class _SimulatedDocumentOption {
     required this.bytes,
     required this.sizeLabel,
     this.isValidationTestOption = false,
+    this.data,
   });
 }
 
@@ -108,6 +110,8 @@ class _RequestIntermediarySheetState
     return '${kb < 1 ? 1 : kb} KB';
   }
 
+  static const _documentChannel = MethodChannel('komuna/intermediary_document');
+
   Future<void> _pickDeviceDocument() async {
     if (!usesAndroidDeviceAccess) {
       _selectDocument(
@@ -123,7 +127,8 @@ class _RequestIntermediarySheetState
     if (_pickingDeviceDoc) return;
     setState(() => _pickingDeviceDoc = true);
     try {
-      final source = await showModalBottomSheet<ImageSource>(
+      final online = ref.read(mockTenantStoreProvider).isOnline;
+      final source = await showModalBottomSheet<String>(
         context: context,
         showDragHandle: true,
         builder: (sheetContext) => SafeArea(
@@ -133,22 +138,43 @@ class _RequestIntermediarySheetState
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined),
                 title: const Text('Tomar foto del documento con la cámara'),
-                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+                onTap: () => Navigator.of(sheetContext).pop('camera'),
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('Seleccionar imagen desde galería'),
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+                onTap: () => Navigator.of(sheetContext).pop('gallery'),
               ),
+              if (online)
+                ListTile(
+                  leading: const Icon(Icons.picture_as_pdf_outlined),
+                  title: const Text('Elegir un archivo PDF'),
+                  onTap: () => Navigator.of(sheetContext).pop('pdf'),
+                ),
             ],
           ),
         ),
       );
       if (source == null || !mounted) return;
+      if (source == 'pdf') {
+        final document = await _documentChannel
+            .invokeMapMethod<String, Object?>('pickPdf');
+        if (document == null || !mounted) return;
+        final data = document['data'] as Uint8List;
+        _selectDocument(
+          _SimulatedDocumentOption(
+            chipKey: const Key('intermediary_doc_device_photo'),
+            name: document['name'] as String,
+            bytes: data.length,
+            sizeLabel: _formatSizeBytes(data.length),
+            data: data,
+          ),
+        );
+        return;
+      }
       final picker = ImagePickerAndroid()..useAndroidPhotoPicker = true;
       final photo = await picker.getImageFromSource(
-        source: source,
+        source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
         options: const ImagePickerOptions(
           maxWidth: 1600,
           maxHeight: 1600,
@@ -159,6 +185,9 @@ class _RequestIntermediarySheetState
       if (photo == null || !mounted) return;
       final file = File(photo.path);
       final bytes = await file.length();
+      final data = online && bytes <= _maxDocumentBytes
+          ? await file.readAsBytes()
+          : null;
       if (!mounted) return;
       final rawName = photo.path.split(Platform.pathSeparator).last.trim();
       final docName = rawName.isEmpty ? 'documento_camara.jpg' : rawName;
@@ -168,18 +197,22 @@ class _RequestIntermediarySheetState
           name: docName,
           bytes: bytes,
           sizeLabel: _formatSizeBytes(bytes),
+          data: data,
         ),
       );
     } on PlatformException catch (error) {
       if (!mounted) return;
       final message = switch (error.code) {
-        'camera_access_denied' =>
-          'Permite el acceso a la cámara en los ajustes de Android o elige una imagen de la galería.',
+        'camera_access_denied' => 'Permite el acceso a la cámara en los ajustes de Android o elige una imagen de la galería.',
         'no_available_camera' => 'No hay una cámara disponible.',
+        'document_size' => 'Adjunta un archivo PDF de hasta 5 MB.',
         _ => 'No se pudo adjuntar la imagen del documento.',
       };
       ScaffoldMessenger.maybeOf(context)
           ?.showSnackBar(SnackBar(content: Text(message)));
+    } on FileSystemException {
+      if (!mounted) return;
+      setState(() => _docError = 'Selecciona el documento de nuevo.');
     } finally {
       if (mounted) setState(() => _pickingDeviceDoc = false);
     }
@@ -251,6 +284,7 @@ class _RequestIntermediarySheetState
         organization: _organizationController.text,
         documentName: doc.name,
         documentBytes: doc.bytes,
+        documentData: doc.data,
       );
       if (!mounted) return;
       setState(() {
@@ -415,7 +449,10 @@ class _RequestIntermediarySheetState
                             ? (_) => _selectDocument(null)
                             : null,
                       ),
-                      for (final doc in validDocs)
+                      for (final doc
+                          in store.isOnline
+                              ? const <_SimulatedDocumentOption>[]
+                              : validDocs)
                         ChoiceChip(
                           key: doc.chipKey,
                           avatar: const Icon(
@@ -434,7 +471,11 @@ class _RequestIntermediarySheetState
                           Icons.add_a_photo_outlined,
                           size: 16,
                         ),
-                        label: const Text('Cámara o galería'),
+                        label: Text(
+                          store.isOnline
+                              ? 'Adjuntar documento'
+                              : 'Cámara o galería',
+                        ),
                         selected:
                             _selectedDoc?.chipKey ==
                             const Key('intermediary_doc_device_photo'),
@@ -444,36 +485,38 @@ class _RequestIntermediarySheetState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Opciones de prueba de validación (CU-41):',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.78,
+                  if (!store.isOnline) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Opciones de prueba de validación (CU-41):',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.78,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final doc in testDocs)
-                        ChoiceChip(
-                          key: doc.chipKey,
-                          avatar: const Icon(
-                            Icons.science_outlined,
-                            size: 16,
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final doc in testDocs)
+                          ChoiceChip(
+                            key: doc.chipKey,
+                            avatar: const Icon(
+                              Icons.science_outlined,
+                              size: 16,
+                            ),
+                            label: Text('${doc.name} (${doc.sizeLabel})'),
+                            selected: _selectedDoc?.name == doc.name,
+                            onSelected: formEnabled
+                                ? (_) => _selectDocument(doc)
+                                : null,
                           ),
-                          label: Text('${doc.name} (${doc.sizeLabel})'),
-                          selected: _selectedDoc?.name == doc.name,
-                          onSelected: formEnabled
-                              ? (_) => _selectDocument(doc)
-                              : null,
-                        ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                   if (_selectedDoc != null) ...[
                     const SizedBox(height: 12),
                     Container(

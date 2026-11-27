@@ -101,7 +101,35 @@ void main() {
           findsOneWidget,
         );
         expect(store.publications.length, initialCount);
-        await tester.enterText(expiration, '29/02/2028');
+        await tester.enterText(expiration, '28/02/2028');
+        final calendar = find.byKey(const Key('item_food_expiration_calendar'));
+        await tapVisible(calendar);
+        expect(find.text('Selecciona la fecha de caducidad'), findsOneWidget);
+        expect(
+          find.textContaining('febrero', findRichText: true),
+          findsWidgets,
+        );
+        await tester.tap(find.text('29'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Aceptar'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextFormField>(expiration).controller!.text,
+          '29/02/2028',
+        );
+        await tapVisible(calendar);
+        expect(
+          tester
+              .widget<DatePickerDialog>(find.byType(DatePickerDialog))
+              .initialDate,
+          DateTime(2028, 2, 29),
+        );
+        await tester.tap(find.text('Cancelar'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextFormField>(expiration).controller!.text,
+          '29/02/2028',
+        );
 
         await tapVisible(category);
         await tapVisible(find.text('Ropa').last);
@@ -129,7 +157,10 @@ void main() {
         container.read(appRouterProvider).go('/publications/${created.id}');
         await tester.pumpAndSettle();
         expect(find.textContaining('Presentación: Latas'), findsOneWidget);
-        expect(find.textContaining('Contenido por envase: 140 g'), findsOneWidget);
+        expect(
+          find.textContaining('Contenido por envase: 140 g'),
+          findsOneWidget,
+        );
         expect(
           find.textContaining('Fecha de caducidad: 29/02/2028'),
           findsOneWidget,
@@ -234,10 +265,7 @@ void main() {
         await tester.tap(find.byKey(const Key('item_submit_button')));
         await tester.pumpAndSettle();
 
-        expect(
-          find.textContaining('primera fotografía'),
-          findsWidgets,
-        );
+        expect(find.textContaining('primera fotografía'), findsWidgets);
         expect(store.publications.length, initialCount);
       },
     );
@@ -365,13 +393,12 @@ void main() {
         await tester.ensureVisible(
           find.byKey(const Key('item_pick_photo_source_button')),
         );
-        await tester.tap(find.byKey(const Key('item_pick_photo_source_button')));
+        await tester.tap(
+          find.byKey(const Key('item_pick_photo_source_button')),
+        );
         await tester.pumpAndSettle();
 
-        expect(
-          find.text('Elegir foto de muestra del tenant'),
-          findsOneWidget,
-        );
+        expect(find.text('Elegir foto de muestra del tenant'), findsOneWidget);
         final galleryTile = find.text(
           'Seleccionar desde galería del dispositivo',
         );
@@ -385,7 +412,9 @@ void main() {
         await tester.ensureVisible(
           find.byKey(const Key('item_pick_photo_source_button')),
         );
-        await tester.tap(find.byKey(const Key('item_pick_photo_source_button')));
+        await tester.tap(
+          find.byKey(const Key('item_pick_photo_source_button')),
+        );
         await tester.pumpAndSettle();
         final sampleTile = find.text('sample://silla_ruedas.jpg');
         await tester.ensureVisible(sampleTile);
@@ -421,10 +450,10 @@ void main() {
         expect(store.publications.length, initialCount + 1);
         final created = store.publications.last;
         expect(created.titulo, 'Andadera plegable');
-        expect(
-          created.fotografias,
-          ['device://galeria_1.jpg', 'sample://silla_ruedas.jpg'],
-        );
+        expect(created.fotografias, [
+          'device://galeria_1.jpg',
+          'sample://silla_ruedas.jpg',
+        ]);
 
         // Success banner remains visible while draft inputs are reset
         expect(find.textContaining('Artículo publicado'), findsWidgets);
@@ -489,11 +518,15 @@ void main() {
         await tester.tap(editBtn);
         await tester.pumpAndSettle();
 
-        final packageField = find.byKey(const Key('edit_pub_food_package_field'));
-        final contentField =
-            find.byKey(const Key('edit_pub_food_package_content_field'));
-        final expirationField =
-            find.byKey(const Key('edit_pub_food_expiration_field'));
+        final packageField = find.byKey(
+          const Key('edit_pub_food_package_field'),
+        );
+        final contentField = find.byKey(
+          const Key('edit_pub_food_package_content_field'),
+        );
+        final expirationField = find.byKey(
+          const Key('edit_pub_food_expiration_field'),
+        );
         final saveBtn = find.byKey(const Key('edit_pub_save_button'));
 
         expect(packageField, findsOneWidget);

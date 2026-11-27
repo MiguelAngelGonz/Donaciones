@@ -2006,6 +2006,7 @@ class MockTenantStore extends ChangeNotifier {
     required String organization,
     required String documentName,
     required int documentBytes,
+    Uint8List? documentData,
   }) async {
     _ensureNetworkAvailable();
     final user = _requireAuthenticatedUser(

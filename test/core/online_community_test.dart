@@ -66,6 +66,8 @@ void main() {
                   'name': 'Cuenta',
                   'username': 'cuenta',
                   'location': '72000',
+                  'average_rating': 4.5,
+                  'review_count': 2,
                 },
               ],
               'publications': [
@@ -127,6 +129,9 @@ void main() {
 
       await store.login(usernameOrEmail: email, password: 'prueba');
       await Future<void>.delayed(Duration.zero);
+      expect(store.activeUser?.perfilConfianzaOtorgado, isTrue);
+      expect(store.activeUser?.promedioCalificacion, 4.5);
+      expect(store.activeUser?.numeroResenas, 2);
       expect(store.canFilterByDistance, isTrue);
       expect(
         store.getDistanceForPublication(store.findPublicationById('unknown')!),

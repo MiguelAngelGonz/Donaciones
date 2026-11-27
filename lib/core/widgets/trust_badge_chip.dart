@@ -17,7 +17,10 @@ class TrustBadgeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final highContrast = _isHighContrast(context);
-    final ratingLabel = usuario.promedioCalificacion.toStringAsFixed(1);
+    final starsOnly = usuario.confianzaPorEstrellas;
+    final ratingLabel = usuario.promedioCalificacion.toStringAsFixed(
+      starsOnly ? 2 : 1,
+    );
 
     if (usuario.perfilConfianzaOtorgado) {
       return Container(
@@ -70,15 +73,16 @@ class TrustBadgeChip extends StatelessWidget {
                 ),
               ],
             ),
-            Text(
-              compact
-                  ? '${usuario.donacionesFinalizadas} don.'
-                  : '${usuario.donacionesFinalizadas} donaciones',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: highContrast ? Colors.black : DonaPlusColors.primary,
-                fontWeight: FontWeight.w600,
+            if (!starsOnly)
+              Text(
+                compact
+                    ? '${usuario.donacionesFinalizadas} don.'
+                    : '${usuario.donacionesFinalizadas} donaciones',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: highContrast ? Colors.black : DonaPlusColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
           ],
         ),
       );
@@ -86,9 +90,14 @@ class TrustBadgeChip extends StatelessWidget {
 
     final clampedDonations = usuario.donacionesFinalizadas.clamp(0, 5);
     final String progressLabel;
-    if (compact) {
+    if (starsOnly) {
+      progressLabel = usuario.numeroResenas == 0
+          ? 'Sin calificaciones'
+          : '★ $ratingLabel / 5';
+    } else if (compact) {
       progressLabel = 'En progreso · ★ $ratingLabel';
-    } else if (usuario.donacionesFinalizadas >= 5 && usuario.numeroResenas < 3) {
+    } else if (usuario.donacionesFinalizadas >= 5 &&
+        usuario.numeroResenas < 3) {
       progressLabel =
           'En progreso ($clampedDonations/5 donaciones · ${usuario.numeroResenas}/3 reseñas · ★ $ratingLabel)';
     } else if (usuario.donacionesFinalizadas >= 5) {

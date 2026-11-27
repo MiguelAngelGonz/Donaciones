@@ -102,6 +102,8 @@ class NotificationsSheet extends ConsumerWidget {
     Navigator.of(context).pop();
     if (donationId != null) {
       router.push('/donations/$donationId');
+    } else if (notification.tipo == TipoNotificacion.decisionRolIntermediario) {
+      router.go('/profile');
     } else if (notification.tipo == TipoNotificacion.nuevaCoincidencia) {
       router.go('/matches');
     } else {

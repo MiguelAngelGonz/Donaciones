@@ -1,15 +1,20 @@
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
 
-bool isValidExpirationDate(String value) {
+bool isValidExpirationDate(String value) => parseExpirationDate(value) != null;
+
+DateTime? parseExpirationDate(String value) {
   final match = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(value);
-  if (match == null) return false;
+  if (match == null) return null;
 
   final day = int.parse(match[1]!);
   final month = int.parse(match[2]!);
   final year = int.parse(match[3]!);
   final date = DateTime.utc(year, month, day);
-  return year > 0 && date.year == year && date.month == month && date.day == day;
+  if (year < 1 || date.year != year || date.month != month || date.day != day) {
+    return null;
+  }
+  return date;
 }
 
 /// Validation result for Need creation and editing forms (CU-11, CU-12, CU-13, CU-15, CU-47).

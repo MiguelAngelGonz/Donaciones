@@ -117,6 +117,7 @@ class UsuarioMock {
   final bool avisoPrivacidadAceptado;
   final bool correoVerificado;
   final bool perfilConfianzaOtorgado;
+  final bool confianzaPorEstrellas;
   final double promedioCalificacion;
   final int donacionesFinalizadas;
   final int numeroResenas;
@@ -136,6 +137,7 @@ class UsuarioMock {
     required this.avisoPrivacidadAceptado,
     required this.correoVerificado,
     required this.perfilConfianzaOtorgado,
+    this.confianzaPorEstrellas = false,
     required this.promedioCalificacion,
     required this.donacionesFinalizadas,
     required this.numeroResenas,
@@ -189,6 +191,7 @@ class UsuarioMock {
       correoVerificado: correoVerificado ?? this.correoVerificado,
       perfilConfianzaOtorgado:
           perfilConfianzaOtorgado ?? this.perfilConfianzaOtorgado,
+      confianzaPorEstrellas: confianzaPorEstrellas,
       promedioCalificacion: promedioCalificacion ?? this.promedioCalificacion,
       donacionesFinalizadas:
           donacionesFinalizadas ?? this.donacionesFinalizadas,

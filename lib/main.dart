@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:donaciones/app/router.dart';
 import 'package:donaciones/app/theme.dart';
+import 'package:donaciones/core/auth/password_recovery.dart';
 import 'package:donaciones/core/auth/registration_auth_options.dart';
 import 'package:donaciones/core/location/android_device_location.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
@@ -39,6 +40,10 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
+        if (isAndroid)
+          passwordRecoveryProvider.overrideWithValue(
+            PasswordRecovery(url: url, key: key),
+          ),
         mockTenantStoreProvider.overrideWith(
           (ref) => OnlineTenantStore(
             client,

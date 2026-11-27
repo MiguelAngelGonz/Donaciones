@@ -1,7 +1,9 @@
 import 'package:donaciones/app/shell_scaffold.dart';
+import 'package:donaciones/core/auth/password_recovery.dart';
 import 'package:donaciones/core/auth/registration_auth_options.dart';
 import 'package:donaciones/features/admin/presentation/admin_panel_screen.dart';
 import 'package:donaciones/features/auth/presentation/login_screen.dart';
+import 'package:donaciones/features/auth/presentation/online_password_recovery_screen.dart';
 import 'package:donaciones/features/auth/presentation/register_screen.dart';
 import 'package:donaciones/features/auth/presentation/reset_password_screen.dart';
 import 'package:donaciones/features/donations/presentation/donation_tracking_screen.dart';
@@ -27,10 +29,7 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
         builder: (context, state, child) =>
             ShellScaffold(location: state.uri.path, child: child),
         routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => const FeedScreen(),
-          ),
+          GoRoute(path: '/', builder: (context, state) => const FeedScreen()),
           GoRoute(
             path: '/matches',
             builder: (context, state) => const MatchesScreen(),
@@ -51,38 +50,37 @@ GoRouter createAppRouter({String initialLocation = '/'}) {
       ),
       GoRoute(
         path: emailConfirmationPath,
-        redirect: (_, _) => '/login',
+        builder: (context, state) => OnlinePasswordRecoveryScreen(
+          key: ValueKey(state.uri),
+          callback: state.uri,
+        ),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: '/reset-password',
-        builder: (context, state) => const ResetPasswordScreen(),
+        builder: (context, state) => Consumer(
+          builder: (context, ref, _) =>
+              ref.watch(passwordRecoveryProvider) == null
+              ? const ResetPasswordScreen()
+              : const OnlinePasswordRecoveryScreen(),
+        ),
       ),
       GoRoute(
         path: '/publications/:id',
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
-          return PublicationDetailScreen(
-            key: ValueKey(id),
-            publicationId: id,
-          );
+          return PublicationDetailScreen(key: ValueKey(id), publicationId: id);
         },
       ),
       GoRoute(
         path: '/donations/:id',
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
-          return DonationTrackingScreen(
-            key: ValueKey(id),
-            donationId: id,
-          );
+          return DonationTrackingScreen(key: ValueKey(id), donationId: id);
         },
       ),
       GoRoute(

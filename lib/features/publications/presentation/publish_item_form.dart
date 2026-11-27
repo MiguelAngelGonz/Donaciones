@@ -1,9 +1,11 @@
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_models.dart';
+import 'package:donaciones/features/publications/presentation/publication_form_validators.dart';
 import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
 import 'package:donaciones/features/publications/presentation/publish_item_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Form for publishing an available Item with 1..5 photographs (CU-14, CU-13).
@@ -47,6 +49,36 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
     super.dispose();
   }
 
+  Future<void> _pickExpirationDate() async {
+    final today = DateUtils.dateOnly(
+      ref.read(mockTenantStoreProvider).currentTime,
+    );
+    final existing = parseExpirationDate(_expirationDateController.text.trim());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: existing ?? today,
+      currentDate: today,
+      firstDate: DateTime(1),
+      lastDate: DateTime(9999, 12, 31),
+      helpText: 'Selecciona la fecha de caducidad',
+      confirmText: 'Aceptar',
+      cancelText: 'Cancelar',
+      builder: (context, child) => Localizations.override(
+        context: context,
+        locale: const Locale('es', 'MX'),
+        delegates: GlobalMaterialLocalizations.delegates,
+        child: child,
+      ),
+    );
+    if (!mounted || picked == null) return;
+
+    final day = picked.day.toString().padLeft(2, '0');
+    final month = picked.month.toString().padLeft(2, '0');
+    final year = picked.year.toString().padLeft(4, '0');
+    _expirationDateController.text = '$day/$month/$year';
+    ref.read(publishItemControllerProvider.notifier).clearCaducidadError();
+  }
+
   Future<void> _submit() async {
     final controller = ref.read(publishItemControllerProvider.notifier);
     final created = await controller.submit(
@@ -60,7 +92,11 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
     if (created == null || !mounted) return;
 
     final defaultLocation =
-        ref.read(mockTenantStoreProvider).activeUser?.ubicacionAproximada.etiqueta ??
+        ref
+            .read(mockTenantStoreProvider)
+            .activeUser
+            ?.ubicacionAproximada
+            .etiqueta ??
         '';
     _titleController.clear();
     _descriptionController.clear();
@@ -71,9 +107,7 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
     _lastDefaultLocation = defaultLocation;
 
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(
-        content: Text('Artículo publicado: "${created.titulo}"'),
-      ),
+      SnackBar(content: Text('Artículo publicado: "${created.titulo}"')),
     );
     widget.onPublished?.call();
   }
@@ -185,7 +219,12 @@ class _PublishItemFormState extends ConsumerState<PublishItemForm> {
                 decoration: InputDecoration(
                   labelText: 'Fecha de caducidad (opcional)',
                   helperText: 'Formato DD/MM/AAAA.',
-                  prefixIcon: const Icon(Icons.event_outlined),
+                  suffixIcon: IconButton(
+                    key: const Key('item_food_expiration_calendar'),
+                    tooltip: 'Abrir calendario de caducidad',
+                    onPressed: _pickExpirationDate,
+                    icon: const Icon(Icons.event_outlined),
+                  ),
                   errorText: state.caducidadError,
                   errorMaxLines: 2,
                 ),

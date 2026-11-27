@@ -5,6 +5,8 @@ typedef _Row = Map<String, dynamic>;
 /// Adapts the online API to the state observed by the existing screens.
 class OnlineTenantStore extends MockTenantStore {
   static const _bucket = 'donaplus-publications';
+  static const _documentBucket = 'komuna-intermediary-documents';
+  final _intermediaryDocumentPaths = <String, String>{};
   static const _photoScheme = 'donaplus-photo:';
   final sb.SupabaseClient client;
   final String? emailConfirmationUrl;
@@ -76,6 +78,8 @@ class OnlineTenantStore extends MockTenantStore {
     _donations.clear();
     _reviews.clear();
     _notifications.clear();
+    _intermediaryRequests.clear();
+    _intermediaryDocumentPaths.clear();
     _resolvedLocations.clear();
     _locationRetryAt.clear();
     _sharedPhones.clear();
@@ -97,15 +101,35 @@ class OnlineTenantStore extends MockTenantStore {
       return;
     }
 
+    final role = snapshot['intermediary'] as Map? ?? const {};
+    final requests = _rows(role['requests']).toList();
+    final approved = requests
+        .where((row) => row['state'] == 'aprobada')
+        .map((row) => row['applicant'])
+        .toSet();
     final profiles = _rows(snapshot['profiles'])
         .map(
           (row) => _profile(
             row,
             email: row['id'] == user.id ? user.email ?? '' : '',
             photo: row['id'] == user.id ? _profilePhoto(user) : null,
+            admin: row['id'] == user.id && role['admin'] == true,
+            intermediary: approved.contains(row['id']),
           ),
         )
         .toList();
+    final knownProfiles = profiles.map((profile) => profile.id).toSet();
+    for (final row in requests) {
+      final applicant = row['applicant'] as String;
+      if (!knownProfiles.add(applicant)) continue;
+      profiles.add(
+        _profile({
+          'id': applicant,
+          'name': row['name'],
+          'username': row['username'],
+        }, intermediary: approved.contains(applicant)),
+      );
+    }
     final categories = _rows(snapshot['categories'])
         .map(
           (row) => CategoriaMock(
@@ -122,9 +146,10 @@ class OnlineTenantStore extends MockTenantStore {
     final donations = _rows(snapshot['donations']);
     final parsedDonations = donations.map(_donation).toList();
     final reviews = _rows(snapshot['reviews']).map(_review).toList();
-    final notifications = _rows(snapshot['notifications'])
-        .map(_notification)
-        .toList();
+    final notifications = [
+      ..._rows(snapshot['notifications']).map(_notification),
+      ..._rows(snapshot['intermediary_notices']).map(_notification),
+    ]..sort((a, b) => b.fecha.compareTo(a.fecha));
     _applied = request;
     _activeUserId = user.id;
     _users
@@ -148,6 +173,19 @@ class OnlineTenantStore extends MockTenantStore {
     _notifications
       ..clear()
       ..addAll(notifications);
+    _intermediaryRequests
+      ..clear()
+      ..addAll(requests.map(_intermediaryRequest));
+    _intermediaryDocumentPaths
+      ..clear()
+      ..addEntries(
+        requests
+            .where((row) => row['document_path'] is String)
+            .map(
+              (row) =>
+                  MapEntry(row['id'] as String, row['document_path'] as String),
+            ),
+      );
     _sharedPhones
       ..clear()
       ..addEntries(
@@ -428,7 +466,7 @@ class OnlineTenantStore extends MockTenantStore {
       );
     } on sb.StorageException {
       throw const NetworkException(
-        'No se pudo subir la foto. Vuelve a intentarlo.',
+        'No se pudo acceder al archivo. Vuelve a intentarlo.',
       );
     } on TimeoutException {
       throw const NetworkException();
@@ -547,14 +585,14 @@ class OnlineTenantStore extends MockTenantStore {
     CreateNeedInput input, [
     String? id,
   ]) async {
-    if (input.gestionadaPorIntermediario) {
-      throw const ValidationException(
-        'La gestión por intermediarios aún no está disponible en línea.',
-      );
+    final alias = input.aliasBeneficiario?.trim();
+    if (input.gestionadaPorIntermediario && (alias == null || alias.isEmpty)) {
+      throw const ValidationException('Escribe un alias para el beneficiario.');
     }
     final result = await _write(id == null ? 'publish' : 'edit', {
       'id': id,
       'kind': 'necesidad',
+      'beneficiary_alias': input.gestionadaPorIntermediario ? alias : null,
       'category': input.categoriaId,
       'title': input.titulo,
       'description': input.descripcion,
@@ -569,6 +607,124 @@ class OnlineTenantStore extends MockTenantStore {
     });
     return findPublicationById(result)!;
   }
+
+  Future<String> _manageIntermediary(String operation, _Row payload) async {
+    final id = await _remote(
+      () async => await client.rpc(
+        'komuna_manage_intermediary',
+        params: {'operation': operation, 'payload': payload},
+      ) as String,
+    );
+    await _refresh();
+    return id;
+  }
+
+  @override
+  Future<SolicitudRolIntermediarioMock> requestIntermediaryRole({
+    required String organization,
+    required String documentName,
+    required int documentBytes,
+    Uint8List? documentData,
+  }) async {
+    final user = activeUser;
+    if (user == null || client.auth.currentUser?.id != user.id) {
+      throw const UnauthorizedActionException();
+    }
+    if (user.esIntermediario ||
+        intermediaryRequests.any(
+          (r) =>
+              r.usuarioId == user.id &&
+              r.estado == EstadoSolicitudRol.pendiente,
+        )) {
+      throw const ValidationException(
+        'Ya tienes una solicitud pendiente o el rol autorizado.',
+      );
+    }
+    final org = organization.trim();
+    final name = documentName.trim();
+    if (org.isEmpty || org.length > 120 || name.length > 255) {
+      throw const ValidationException(
+        'Revisa el nombre de la organización y el documento.',
+      );
+    }
+    final extension = name.split('.').last.toLowerCase();
+    final mimeType = switch (extension) {
+      'pdf' => 'application/pdf',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      _ => null,
+    };
+    if (mimeType == null ||
+        documentData == null ||
+        documentData.isEmpty ||
+        documentData.length > 5 * 1024 * 1024) {
+      throw const ValidationException(
+        'Adjunta un PDF, JPG o PNG de hasta 5 MB.',
+      );
+    }
+    final path =
+        '${user.id}/${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}.$extension';
+    await _remote(
+      () => client.storage
+          .from(_documentBucket)
+          .uploadBinary(
+            path,
+            documentData,
+            fileOptions: sb.FileOptions(contentType: mimeType),
+          ),
+    );
+    if (client.auth.currentUser?.id != user.id) {
+      throw const UnauthorizedActionException();
+    }
+    final id = await _manageIntermediary('request', {
+      'organization': org,
+      'document_name': name,
+      'document_path': path,
+    });
+    return intermediaryRequests.firstWhere((request) => request.id == id);
+  }
+
+  @override
+  Future<void> approveIntermediaryRequest(String requestId) async {
+    await _manageIntermediary('approve', {'id': requestId});
+  }
+
+  @override
+  Future<void> rejectIntermediaryRequest(
+    String requestId, {
+    String? reason,
+  }) async {
+    await _manageIntermediary('reject', {'id': requestId, 'reason': reason});
+  }
+
+  @override
+  Future<void> revokeIntermediaryRole(String userId) async {
+    await _manageIntermediary('revoke', {'user_id': userId});
+  }
+
+  Future<String> intermediaryDocumentUrl(String requestId) {
+    final path = _intermediaryDocumentPaths[requestId];
+    if (activeUser?.esAdministrador != true || path == null) {
+      throw const UnauthorizedActionException();
+    }
+    return _remote(
+      () => client.storage.from(_documentBucket).createSignedUrl(path, 60),
+    );
+  }
+
+  static SolicitudRolIntermediarioMock _intermediaryRequest(_Row row) =>
+      SolicitudRolIntermediarioMock(
+        id: row['id'] as String,
+        usuarioId: row['applicant'] as String,
+        organizacion: row['organization'] as String,
+        documentoNombre: row['document_name'] as String,
+        documentoBytesSimulados: row['document_size'] as int,
+        estado: EstadoSolicitudRol.values.byName(row['state'] as String),
+        fechaSolicitud: _date(row['created_at']),
+        fechaDecision: _maybeDate(row['decided_at']),
+        revisadaPorAdminId: row['reviewer'] as String?,
+        motivoDecision: row['reason'] as String?,
+      );
 
   @override
   Future<PublicacionMock> createItemPublication(CreateItemInput input) =>
@@ -681,7 +837,7 @@ class OnlineTenantStore extends MockTenantStore {
   @override
   Future<DonacionMock> cancelDonation({
     required String donationId,
-    required String reason,
+    String? reason,
     required String clientKey,
   }) => _donationAction('cancel', donationId, {
     'reason': reason,
@@ -725,7 +881,7 @@ class OnlineTenantStore extends MockTenantStore {
   static NotificacionMock _notification(_Row row) => NotificacionMock(
     id: row['id'] as String,
     destinatarioId: row['recipient'] as String,
-    publicacionId: row['publication'] as String,
+    publicacionId: row['publication'] as String? ?? '',
     donacionId: row['donation'] as String?,
     mensaje: row['message'] as String,
     fecha: _date(row['created_at']),
@@ -745,6 +901,8 @@ class OnlineTenantStore extends MockTenantStore {
     String email = '',
     String? photo,
     bool verified = true,
+    bool admin = false,
+    bool intermediary = false,
   }) => UsuarioMock(
     id: row['id'] as String,
     nombreUsuario: row['username'] as String,
@@ -757,10 +915,13 @@ class OnlineTenantStore extends MockTenantStore {
     ),
     avisoPrivacidadAceptado: true,
     correoVerificado: verified,
-    perfilConfianzaOtorgado: false,
-    promedioCalificacion: 0,
+    esAdministrador: admin,
+    esIntermediario: intermediary,
+    confianzaPorEstrellas: true,
+    perfilConfianzaOtorgado: (row['average_rating'] as num? ?? 0) >= 4.0,
+    promedioCalificacion: (row['average_rating'] as num?)?.toDouble() ?? 0,
     donacionesFinalizadas: 0,
-    numeroResenas: 0,
+    numeroResenas: (row['review_count'] as num?)?.toInt() ?? 0,
     fechaRegistro: _maybeDate(row['created_at']),
   );
 
@@ -785,6 +946,8 @@ class OnlineTenantStore extends MockTenantStore {
       (key, value) => MapEntry(key.toString(), value.toString()),
     ),
     fotografias: _photos(row['photos']),
+    gestionadaPorIntermediario: row['beneficiary_alias'] != null,
+    aliasBeneficiario: row['beneficiary_alias'] as String?,
   );
 
   @override
@@ -855,6 +1018,7 @@ class OnlineTenantStore extends MockTenantStore {
       propuestaId: row['proposal'] as String,
       donanteId: row['donor'] as String,
       donatarioId: row['recipient'] as String,
+      intermediarioId: row['intermediary'] as String?,
       estado: EstadoDonacion.values.byName(row['state'] as String),
       lugarEntrega: row['place'] as String?,
       fechaEntregaAcordada: _maybeDate(row['scheduled_at']),

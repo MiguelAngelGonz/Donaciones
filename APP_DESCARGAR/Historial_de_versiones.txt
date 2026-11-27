@@ -1,0 +1,104 @@
+KOMUNA · HISTORIAL DE VERSIONES
+Proyecto Donaciones, anteriormente DonaPlus
+Actualizado el 26 de noviembre de 2026
+
+Versión actual del instalador: Komuna 1.1.13 (compilación 15).
+Archivo: Komuna.apk. Identificador Android: com.example.donaciones.
+
+1.0.0 (compilación 1) · Desarrollo inicial, octubre y noviembre de 2026
+-----------------------------------------------------------------------
+- 13 de octubre. Se inició el proyecto Flutter.
+- 10 de noviembre. Se documentaron los primeros flujos de registro,
+  publicación de necesidades y artículos, filtros y propuestas.
+- 18 y 19 de noviembre. Se implementaron el tema, la navegación y las
+  opciones de accesibilidad. Se añadieron registro, inicio de sesión,
+  recuperación de contraseña y perfil.
+- Se incorporaron publicaciones, filtros, cercanía y coincidencias
+  automáticas entre necesidades y artículos de la misma categoría.
+- Se añadió el ciclo de donación con propuestas, aceptación y rechazo,
+  chat, coordinación de entrega, confirmación, historial y reseñas.
+- En modo de demostración se añadió la solicitud de rol de intermediario
+  comunitario, la aprobación o revocación por administración y la
+  publicación de necesidades para un beneficiario.
+- Las correcciones del MVP ajustaron el manejo de reintentos de red,
+  el aviso de propuesta aceptada al cancelar una donación, la navegación
+  entre registros y el reinicio de formularios.
+
+1.0.0 (compilación 1) · Primer APK registrado, 25 de noviembre de 2026
+--------------------------------------------------------------------
+- Se incorporó DonaPlus.apk a APP_DESCARGAR.
+- Se actualizó la selección de fotos para las publicaciones y su
+  visualización en la app.
+- Se ajustaron la ubicación de las publicaciones y su uso en las
+  pantallas de listado y detalle.
+- Se añadió soporte para publicar artículos de Alimentación con sus
+  campos propios y se actualizaron las validaciones y pruebas.
+
+1.0.0 (compilación 1) · Actualización del APK, 26 de noviembre de 2026
+-------------------------------------------------------------------
+- Se añadieron Términos y Condiciones y una tarjeta de permisos del
+  dispositivo.
+- Se añadió la selección de foto de perfil desde cámara o galería y
+  la selección del documento de respaldo para la solicitud de
+  intermediario en modo de demostración.
+- Se habilitó editar la presentación y la fecha de caducidad opcional
+  de los artículos de Alimentación.
+- El APK actualizado conservó el número de versión 1.0.0.
+
+1.1.5 (compilación 7) · Integración en código, 26 de noviembre de 2026
+-------------------------------------------------------------------
+- Se integró el piloto en línea con Supabase y la marca Komuna.
+- Se conectaron el acceso por correo, las publicaciones, las propuestas,
+  el chat, la entrega y las reseñas con la persistencia del servidor.
+- Se incorporaron las migraciones de donaciones y reseñas.
+- En esta revisión, el código declaraba 1.1.5, mientras que el APK
+  guardado en el historial todavía declaraba 1.0.0.
+
+1.1.10 (compilación 12) · 26 de noviembre de 2026
+----------------------------------------------------------------
+- Se sustituyó el instalador DonaPlus.apk por Komuna.apk y se
+  actualizaron el nombre y el ícono de la aplicación.
+- Se añadió Donaciones → Mis publicaciones. La sección lista las
+  publicaciones de la cuenta activa con su tipo y estado, ordena las
+  más recientes primero y abre el detalle de cada publicación.
+- Se actualizaron los avisos de privacidad y el paso de confirmación
+  del registro.
+- Se incorporaron notificaciones en línea y se muestran las reseñas
+  recibidas en el perfil. La app consulta cambios del servidor cada
+  cuatro segundos mientras está en uso.
+- Se añadió la categoría Tecnología y se mejoró el cálculo de
+  distancias con la colonia o el código postal de las publicaciones
+  y la ubicación del dispositivo o la zona del perfil.
+- El flujo de intermediarios comunitarios sigue disponible en modo de
+  demostración. Su operación en línea continúa pendiente.
+
+1.1.11 (compilación 13) · 26 de noviembre de 2026
+----------------------------------------------------------------
+- Se habilitó la solicitud de intermediario comunitario en Perfil,
+  con un PDF o imagen de hasta 5 MB en almacenamiento privado.
+- El Panel de Administración permite revisar adjuntos pendientes,
+  aprobar, rechazar con un motivo y revocar autorizaciones.
+- Las decisiones generan un aviso y, tras la aprobación, la cuenta
+  puede publicar necesidades en nombre de un beneficiario mediante
+  un alias. La revocación retira las necesidades gestionadas activas.
+
+1.1.12 (compilación 14) · 26 de noviembre de 2026
+----------------------------------------------------------------
+- Se habilitó la recuperación de contraseña en Android. Komuna envía
+  un enlace al correo registrado y permite elegir una contraseña
+  nueva en el teléfono que solicitó la recuperación.
+- El Perfil de Confianza en línea muestra el promedio de estrellas de
+  las reseñas verificadas. La insignia se otorga desde 4.0 de 5.
+
+1.1.13 (compilación 15) · Versión actual, 26 de noviembre de 2026
+----------------------------------------------------------------
+- En Publicar → Quiero donar → Alimentación se puede elegir la fecha
+  de caducidad con un calendario en español. La fecha se guarda con
+  el formato DD/MM/AAAA y también se puede escribir directamente.
+
+Fuentes y alcance
+-----------------
+Historial Git del proyecto, versiones de pubspec.yaml, README.md y
+metadatos de los APK guardados en Git y en APP_DESCARGAR.
+Referencias principales: 1822eaa, 7161110, 9bd4e4a, 9c98dcc, 013c835.
+Se incluyen las versiones y revisiones comprobables en esas fuentes.

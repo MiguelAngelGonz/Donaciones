@@ -6,6 +6,7 @@ import 'package:donaciones/core/widgets/demo_tenant_toolbar.dart';
 import 'package:donaciones/features/donations/presentation/donation_ui_helpers.dart';
 import 'package:donaciones/features/publications/presentation/publication_ui_helpers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -102,6 +103,28 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     }
   }
 
+  Future<void> _openDocument(OnlineTenantStore store, String requestId) async {
+    if (_isBusy) return;
+    setState(() {
+      _isBusy = true;
+      _actionError = null;
+    });
+    try {
+      final url = await store.intermediaryDocumentUrl(requestId);
+      if (!mounted) return;
+      await const MethodChannel('komuna/intermediary_document')
+          .invokeMethod<void>('open', url);
+    } on Exception {
+      if (mounted) {
+        setState(
+          () => _actionError = 'No se pudo abrir el documento de respaldo.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
   Future<void> _approveRequest(
     MockTenantStore store,
     SolicitudRolIntermediarioMock req,
@@ -159,8 +182,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
     await _runAdminAction(
       () => store.revokeIntermediaryRole(user.id),
-      successMessage:
-          'Rol de intermediario revocado para ${user.nombreLegal}.',
+      successMessage: 'Rol de intermediario revocado para ${user.nombreLegal}.',
     );
   }
 
@@ -221,10 +243,8 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       context: context,
       builder: (_) => _RenameCategoryDialog(
         initialName: category.nombre,
-        onConfirm: (newName) => store.renameCategory(
-          categoryId: category.id,
-          newName: newName,
-        ),
+        onConfirm: (newName) =>
+            store.renameCategory(categoryId: category.id, newName: newName),
       ),
     );
     if (renamed == null || !mounted) return;
@@ -284,7 +304,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       ),
       body: Column(
         children: [
-          const DemoTenantToolbar(),
+          if (!store.isOnline) const DemoTenantToolbar(),
           Expanded(
             child: activeUser?.esAdministrador != true
                 ? _UnauthorizedAdminGuard(
@@ -292,7 +312,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                     onGoHome: _goHome,
                   )
                 : DefaultTabController(
-                    length: 2,
+                    length: store.isOnline ? 1 : 2,
                     child: Column(
                       children: [
                         Material(
@@ -302,15 +322,16 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                             unselectedLabelColor: theme.colorScheme.onSurface
                                 .withValues(alpha: 0.72),
                             indicatorColor: theme.colorScheme.secondary,
-                            tabs: const [
-                              Tab(
+                            tabs: [
+                              const Tab(
                                 key: Key('admin_tab_intermediaries'),
                                 text: 'Intermediarios',
                               ),
-                              Tab(
-                                key: Key('admin_tab_categories'),
-                                text: 'Categorías',
-                              ),
+                              if (!store.isOnline)
+                                const Tab(
+                                  key: Key('admin_tab_categories'),
+                                  text: 'Categorías',
+                                ),
                             ],
                           ),
                         ),
@@ -334,7 +355,8 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                           child: TabBarView(
                             children: [
                               _buildIntermediariesTab(context, store),
-                              _buildCategoriesTab(context, store),
+                              if (!store.isOnline)
+                                _buildCategoriesTab(context, store),
                             ],
                           ),
                         ),
@@ -349,23 +371,25 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
   Widget _buildIntermediariesTab(BuildContext context, MockTenantStore store) {
     final theme = Theme.of(context);
-    final pendingRequests = store.intermediaryRequests
-        .where((r) => r.estado == EstadoSolicitudRol.pendiente)
-        .toList()
-      ..sort((a, b) => b.fechaSolicitud.compareTo(a.fechaSolicitud));
+    final pendingRequests =
+        store.intermediaryRequests
+            .where((r) => r.estado == EstadoSolicitudRol.pendiente)
+            .toList()
+          ..sort((a, b) => b.fechaSolicitud.compareTo(a.fechaSolicitud));
 
     final authorizedUsers = store.users
         .where((u) => u.esIntermediario)
         .toList();
 
-    final resolvedRequests = store.intermediaryRequests
-        .where((r) => r.estado != EstadoSolicitudRol.pendiente)
-        .toList()
-      ..sort((a, b) {
-        final dateA = a.fechaDecision ?? a.fechaSolicitud;
-        final dateB = b.fechaDecision ?? b.fechaSolicitud;
-        return dateB.compareTo(dateA);
-      });
+    final resolvedRequests =
+        store.intermediaryRequests
+            .where((r) => r.estado != EstadoSolicitudRol.pendiente)
+            .toList()
+          ..sort((a, b) {
+            final dateA = a.fechaDecision ?? a.fechaSolicitud;
+            final dateB = b.fechaDecision ?? b.fechaSolicitud;
+            return dateB.compareTo(dateA);
+          });
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -403,6 +427,9 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                       ),
                       isBusy: _isBusy,
                       onApprove: () => _approveRequest(store, req),
+                      onOpenDocument: store is OnlineTenantStore
+                          ? () => _openDocument(store, req.id)
+                          : null,
                       onReject: () => _rejectRequest(store, req),
                     ),
                     const SizedBox(height: 10),
@@ -472,8 +499,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
   String _latestApprovedOrgFor(MockTenantStore store, String userId) {
     final approved = store.intermediaryRequests.where(
-      (r) =>
-          r.usuarioId == userId && r.estado == EstadoSolicitudRol.aprobada,
+      (r) => r.usuarioId == userId && r.estado == EstadoSolicitudRol.aprobada,
     );
     if (approved.isEmpty) return 'Organización comunitaria verificada';
     return approved.last.organizacion;
@@ -639,6 +665,7 @@ class _PendingRequestCard extends StatelessWidget {
   final bool isBusy;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+  final VoidCallback? onOpenDocument;
 
   const _PendingRequestCard({
     required this.request,
@@ -647,14 +674,16 @@ class _PendingRequestCard extends StatelessWidget {
     required this.isBusy,
     required this.onApprove,
     required this.onReject,
+    this.onOpenDocument,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final applicantName = applicant?.nombreLegal ?? request.usuarioId;
-    final applicantHandle =
-        applicant != null ? '@${applicant!.nombreUsuario}' : request.usuarioId;
+    final applicantHandle = applicant != null
+        ? '@${applicant!.nombreUsuario}'
+        : request.usuarioId;
 
     return Card(
       key: Key('pending_request_${request.id}'),
@@ -726,6 +755,12 @@ class _PendingRequestCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 8,
               children: [
+                if (onOpenDocument != null)
+                  OutlinedButton.icon(
+                    onPressed: isBusy ? null : onOpenDocument,
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('Abrir documento'),
+                  ),
                 FilledButton.icon(
                   key: Key('approve_request_${request.id}'),
                   onPressed: isBusy ? null : onApprove,
@@ -984,7 +1019,9 @@ class _CategoryAdminCard extends StatelessWidget {
                   child: Icon(
                     iconForCategoryKey(category.iconoClave),
                     size: 20,
-                    color: highContrast ? Colors.black : theme.colorScheme.primary,
+                    color: highContrast
+                        ? Colors.black
+                        : theme.colorScheme.primary,
                   ),
                 ),
                 const SizedBox(width: 12),

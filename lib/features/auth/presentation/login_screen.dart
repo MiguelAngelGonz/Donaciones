@@ -1,3 +1,4 @@
+import 'package:donaciones/core/auth/password_recovery.dart';
 import 'package:donaciones/core/mock/mock_tenant_store.dart';
 import 'package:donaciones/core/models/domain_exceptions.dart';
 import 'package:donaciones/core/models/domain_models.dart';
@@ -219,9 +220,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            online
-                                ? 'Ingresa con el correo de tu cuenta.'
-                                : 'Ingresa con tu nombre de usuario o correo electrónico.',
+                            online ? 'Ingresa con el correo de tu cuenta.' : 'Ingresa con tu nombre de usuario o correo electrónico.',
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodyMedium,
                           ),
@@ -230,10 +229,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             key: const Key('login_identifier_field'),
                             controller: _identifierController,
                             textInputAction: TextInputAction.next,
-                            keyboardType: online ? TextInputType.emailAddress : null,
+                            keyboardType: online
+                                ? TextInputType.emailAddress
+                                : null,
                             decoration: InputDecoration(
-                              labelText: online ? 'Correo electrónico' : 'Nombre de usuario o correo',
-                              hintText: online ? 'correo@ejemplo.com' : '@usuario o correo@ejemplo.com',
+                              labelText: online
+                                  ? 'Correo electrónico'
+                                  : 'Nombre de usuario o correo',
+                              hintText: online
+                                  ? 'correo@ejemplo.com'
+                                  : '@usuario o correo@ejemplo.com',
                               prefixIcon: const Icon(Icons.person_outline),
                             ),
                           ),
@@ -247,7 +252,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               labelText: 'Contraseña',
                               prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
-                                tooltip: _obscurePassword ? 'Mostrar' : 'Ocultar',
+                                tooltip: _obscurePassword
+                                    ? 'Mostrar'
+                                    : 'Ocultar',
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_outlined
@@ -307,11 +314,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             spacing: 8,
                             runSpacing: 4,
                             children: [
-                              if (!online)
+                              if (!online ||
+                                  ref.watch(passwordRecoveryProvider) != null)
                                 TextButton(
-                                  onPressed: () =>
-                                      _navigateTo('/reset-password', push: true),
-                                  child: const Text('¿Olvidaste tu contraseña?'),
+                                  onPressed: () => _navigateTo(
+                                    '/reset-password',
+                                    push: true,
+                                  ),
+                                  child: const Text(
+                                    '¿Olvidaste tu contraseña?',
+                                  ),
                                 ),
                               TextButton(
                                 onPressed: () =>

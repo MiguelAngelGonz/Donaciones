@@ -45,12 +45,14 @@ class ProfileScreen extends ConsumerWidget {
     }
 
     final reviews = store.getReviewsForUser(activeUser.id);
-    final intermediaryRequests = store.intermediaryRequests.reversed
-        .where((r) => r.usuarioId == activeUser.id)
-        .toList()
-      ..sort((a, b) => b.fechaSolicitud.compareTo(a.fechaSolicitud));
-    final latestIntermediaryRequest =
-        intermediaryRequests.isEmpty ? null : intermediaryRequests.first;
+    final intermediaryRequests =
+        store.intermediaryRequests.reversed
+            .where((r) => r.usuarioId == activeUser.id)
+            .toList()
+          ..sort((a, b) => b.fechaSolicitud.compareTo(a.fechaSolicitud));
+    final latestIntermediaryRequest = intermediaryRequests.isEmpty
+        ? null
+        : intermediaryRequests.first;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -66,25 +68,22 @@ class ProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
               const LegalAndPermissionsCard(),
-              if (!store.isOnline) ...[
-                const SizedBox(height: 14),
-                _TrustProfileCard(user: activeUser),
-              ],
+              const SizedBox(height: 14),
+              _TrustProfileCard(user: activeUser),
               const SizedBox(height: 14),
               _ReviewsCard(
                 reviews: reviews,
                 store: store,
                 formatDate: _formatDate,
               ),
-              if (!store.isOnline) ...[
-                const SizedBox(height: 14),
-                _IntermediarySectionCard(
-                  user: activeUser,
-                  latestRequest: latestIntermediaryRequest,
-                  onRequestIntermediary: onRequestIntermediary ??
-                      () => showRequestIntermediarySheet(context),
-                ),
-              ],
+              const SizedBox(height: 14),
+              _IntermediarySectionCard(
+                user: activeUser,
+                latestRequest: latestIntermediaryRequest,
+                onRequestIntermediary:
+                    onRequestIntermediary ??
+                    () => showRequestIntermediarySheet(context),
+              ),
               if (activeUser.esAdministrador) ...[
                 const SizedBox(height: 14),
                 _AdminAccessCard(
@@ -342,6 +341,28 @@ class _TrustProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (user.confianzaPorEstrellas) {
+      return Card(
+        child: ListTile(
+          leading: Icon(
+            Icons.shield_outlined,
+            color: theme.colorScheme.primary,
+          ),
+          title: const Text('Perfil de Confianza'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              TrustBadgeChip(usuario: user),
+              const SizedBox(height: 8),
+              Text(
+                '${user.numeroResenas} reseñas verificadas · Meta: 4.0 de 5',
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final missingItems = <String>[
       if (user.faltantesDonaciones > 0)
         'Te falta${user.faltantesDonaciones == 1 ? '' : 'n'} ${user.faltantesDonaciones} ${user.faltantesDonaciones == 1 ? 'donación finalizada' : 'donaciones finalizadas'} (meta: 5).',
@@ -398,8 +419,7 @@ class _TrustProfileCard extends StatelessWidget {
             const SizedBox(height: 12),
             if (user.perfilConfianzaOtorgado)
               const AuthFeedbackBanner(
-                message:
-                    'Cumples con los requisitos del Perfil de Confianza (≥ 5 donaciones finalizadas, promedio ≥ 4.0 y ≥ 3 reseñas).',
+                message: 'Cumples con los requisitos del Perfil de Confianza (≥ 5 donaciones finalizadas, promedio ≥ 4.0 y ≥ 3 reseñas).',
                 tone: AuthBannerTone.success,
               )
             else
@@ -538,7 +558,8 @@ class _ReviewsCard extends StatelessWidget {
                     if (i > 0) const Divider(height: 18),
                     _ReviewItem(
                       review: reviews[i],
-                      authorName: store.findUserById(reviews[i].autorId)?.nombreLegal ??
+                      authorName:
+                          store.findUserById(reviews[i].autorId)?.nombreLegal ??
                           'Miembro Komuna',
                       dateLabel: formatDate(reviews[i].fecha),
                     ),
@@ -581,10 +602,7 @@ class _ReviewItem extends StatelessWidget {
                 ),
               ),
             ),
-            Text(
-              dateLabel,
-              style: theme.textTheme.labelSmall,
-            ),
+            Text(dateLabel, style: theme.textTheme.labelSmall),
           ],
         ),
         const SizedBox(height: 4),
@@ -682,7 +700,8 @@ class _IntermediarySectionCard extends StatelessWidget {
             const SizedBox(height: 10),
             if (user.esIntermediario) ...[
               AuthFeedbackBanner(
-                message: latestRequest != null &&
+                message:
+                    latestRequest != null &&
                         latestRequest!.estado == EstadoSolicitudRol.aprobada
                     ? 'Intermediario comunitario autorizado (${latestRequest!.organizacion}).'
                     : 'Intermediario comunitario autorizado.',
@@ -697,7 +716,8 @@ class _IntermediarySectionCard extends StatelessWidget {
             ] else ...[
               if (latestRequest != null &&
                   (latestRequest!.estado == EstadoSolicitudRol.rechazada ||
-                      latestRequest!.estado == EstadoSolicitudRol.revocada)) ...[
+                      latestRequest!.estado ==
+                          EstadoSolicitudRol.revocada)) ...[
                 AuthFeedbackBanner(
                   message: latestRequest!.estado == EstadoSolicitudRol.rechazada
                       ? 'Tu solicitud anterior fue rechazada${latestRequest!.motivoDecision != null ? ': ${latestRequest!.motivoDecision}' : '.'}'
